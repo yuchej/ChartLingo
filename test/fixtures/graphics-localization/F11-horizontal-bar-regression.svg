@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="666" height="534" viewBox="0 0 666 534">
+  <rect width="666" height="534" fill="#fff" stroke="#777"/>
+  <text id="title" x="18" y="48" font-family="Arial" font-size="30" font-weight="700">新加坡康养经济各领域规模</text>
+  <text id="unit" x="430" y="48" font-family="Arial" font-size="16" font-weight="700">（亿美元）</text>
+  <line x1="16" y1="63" x2="526" y2="63" stroke="#f7bd42" stroke-width="2"/>
+  <line x1="290" y1="84" x2="290" y2="486" stroke="#555"/>
+  <g fill="#ffc34d">
+    <rect x="290" y="98" width="296" height="26"/><rect x="290" y="138" width="164" height="26"/><rect x="290" y="178" width="128" height="26"/><rect x="290" y="218" width="126" height="26"/><rect x="290" y="258" width="89" height="26"/><rect x="290" y="298" width="71" height="26"/><rect x="290" y="338" width="48" height="26"/><rect x="290" y="378" width="43" height="26"/><rect x="290" y="418" width="20" height="26"/><rect x="290" y="458" width="10" height="26"/>
+  </g>
+  <g font-family="Arial" font-size="21" font-weight="700" text-anchor="end">
+    <text x="282" y="119">个人护理与美容</text><text x="282" y="159">养生房地产</text><text x="282" y="199">公共卫生、预防与个体化医疗</text><text x="282" y="239">健身强体活动</text><text x="282" y="279">健康饮食、营养与减重</text><text x="282" y="319">养生旅游</text><text x="282" y="359">传统与辅助医疗</text><text x="282" y="399">水疗</text><text x="282" y="439">心理健康</text><text x="282" y="479">职场健康</text>
+  </g>
+  <g font-family="Arial" font-size="18"><text x="600" y="119">69.8</text><text x="468" y="159">38.4</text><text x="432" y="199">30.2</text><text x="430" y="239">29.7</text><text x="393" y="279">20.9</text><text x="375" y="319">16.7</text><text x="352" y="359">11.4</text><text x="347" y="399">10.3</text><text x="324" y="439">4.9</text><text x="314" y="479">2.5</text></g>
+  <rect x="0" y="502" width="666" height="32" fill="#fff3e5"/>
+  <text id="source" x="12" y="525" font-family="Arial" font-size="16">资料来源／全球养生研究所</text><text id="note" x="264" y="525" font-family="Arial" font-size="16">注：2024年数据</text>
+  <circle id="logo" cx="540" cy="518" r="10" fill="#e0004d"/><text x="555" y="525" font-family="Arial" font-size="16">图表／李太里</text>
+</svg>

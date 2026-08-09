@@ -1,0 +1,10 @@
+{
+  "name": "chartlingo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SVG-first newsroom graphics localization studio",
+  "scripts": {
+    "serve": "ruby -run -e httpd . -p 4173 -b 127.0.0.1",
+    "test": "python3 -m unittest discover -s tests -v"
+  }
+}

@@ -1,0 +1,1 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><g transform="translate(20 30)"><text id="title" x="10" y="30" font-size="24"><tspan>嵌套</tspan><tspan dx="8">标题</tspan></text><g transform="rotate(-12 200 180)"><text id="axis-label" x="200" y="180" font-size="14" text-anchor="middle">增长率</text></g></g></svg>

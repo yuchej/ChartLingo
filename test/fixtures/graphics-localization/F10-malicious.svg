@@ -1,0 +1,1 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" onload="alert(1)"><script>alert(1)</script><foreignObject><iframe src="https://evil.example"/></foreignObject><image href="https://evil.example/a.png"/><text x="10" y="30" onclick="alert(2)">安全标题</text></svg>

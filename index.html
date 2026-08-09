@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ChartLingo</title>
+  <link rel="stylesheet" href="styles.css?v=20260809-5">
+</head>
+<body>
+  <header class="app-bar">
+    <strong class="wordmark">ChartLingo</strong>
+    <div class="file-actions">
+      <label class="toolbar-file" for="files"><span>Upload SVG</span><small id="svgFileName">No SVG loaded</small></label>
+      <input id="files" class="visually-hidden" type="file" accept="image/svg+xml,.svg" multiple>
+      <label class="toolbar-file" for="translationFile"><span>Upload CSV</span><small id="csvFileName">No CSV loaded</small></label>
+      <input id="translationFile" class="visually-hidden" type="file" accept=".csv,.txt,text/csv,text/plain">
+      <button id="generateEnglish" class="generate" disabled>Generate English Chart</button>
+    </div>
+    <div class="toolbar">
+      <span id="saved" class="saved-status">Saved locally</span>
+      <button id="undo" class="dark-control" type="button">↶ Undo</button>
+      <button id="redo" class="dark-control" type="button">↷ Redo</button>
+      <select id="mode" hidden aria-label="Layout mode"><option value="FLEXIBLE" selected>FLEXIBLE</option></select>
+      <button id="check" type="button" hidden>Run check</button>
+      <button class="dark-control" id="export" type="button">Export PNG</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="upload" class="upload-drop-target" aria-label="SVG drop target">
+      <p class="visually-hidden">Translation File. Match method. PDF, AI, PNG and JPG import are not enabled; export SVG from the source application first.</p>
+      <div id="importStatus" class="import-status" role="status" aria-live="polite">Ready for SVG import.</div>
+      <div id="translationStatus" class="translation-status" role="status" aria-live="polite">No translation file loaded.</div>
+      <div id="generationStatus" class="generation-status" role="status" aria-live="polite">Upload an SVG and a translation file to enable generation.</div>
+    </section>
+
+    <section id="workspace" class="workspace empty">
+      <div class="panel">
+        <div class="panel-title"><h2>Chinese Original</h2><span id="originalDimensions"></span></div>
+        <div id="original" class="canvas"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title"><h2>English Output</h2><span id="englishDimensions"></span></div>
+        <div id="english" class="canvas"></div>
+      </div>
+    </section>
+
+    <nav id="cards" aria-label="Series cards"></nav>
+
+    <section id="mappingPanel" class="mapping-panel" hidden>
+      <div class="mapping-head">
+        <div><h2>Text &amp; Translation</h2><span id="coverage"></span></div>
+        <button id="unmatchedToggle" class="unmatched-toggle" type="button" aria-expanded="false">
+          <span class="warning-icon" aria-hidden="true">!</span>
+          <span id="unmatchedCount">0 unmatched items</span>
+          <span aria-hidden="true">⌄</span>
+        </button>
+      </div>
+      <input id="pairSearch" type="hidden" value="">
+
+      <section id="unmatchedReview" class="unmatched-review" hidden>
+        <div class="review-title"><h3>Unmatched items</h3><span>Review the source data before export</span></div>
+        <div class="mapping-scroll"><table><thead><tr><th>ID</th><th>Chinese (Original)</th><th>English</th><th>Actions</th></tr></thead><tbody id="unmatchedRows"></tbody></table></div>
+      </section>
+
+      <div id="editorScroll" class="editor-scroll">
+        <table class="editor-table">
+          <thead><tr><th>ID</th><th>Chinese</th><th>English</th><th>Role</th><th>Context</th></tr></thead>
+          <tbody id="mappingRows"></tbody>
+        </table>
+      </div>
+      <details class="unused"><summary id="unusedSummary">Unused translations</summary><ul id="unusedTranslations"></ul></details>
+    </section>
+
+    <aside class="legacy-inspector" aria-hidden="true">
+      <textarea id="editText"></textarea><input id="w" type="number"><input id="h" type="number"><input id="size" type="number"><select id="role"></select><button id="resetPosition">Reset position</button><div id="issues"></div>
+    </aside>
+  </main>
+
+  <div class="visually-hidden" aria-hidden="true"><span id="preflight"></span><select id="format"><option>PNG</option></select><select id="exportScope"><option value="card">Current card</option></select><input id="ack" type="checkbox" checked><button id="download" type="button">Download PNG</button></div>
+  <script src="config.js?v=20260809-15"></script><script src="src/core.js?v=20260809-15"></script><script src="src/exporters.js?v=20260809-15"></script><script src="src/app.js?v=20260809-15"></script>
+</body>
+</html>
