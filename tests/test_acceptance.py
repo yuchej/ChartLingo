@@ -106,6 +106,8 @@ class AcceptanceSmokeTests(unittest.TestCase):
         app = (ROOT / "src/app.js").read_text()
         for token in ("getDocument", "getTextContent", "page.render", "pdf_text", "PDF_NO_SELECTABLE_TEXT", "pdf-text-mask", "pdf.worker.min.mjs", "mergePdfTextLines", "hasEOL"):
             self.assertIn(token, src + app)
+        self.assertIn("document.currentScript.src", src)
+        self.assertNotIn("import('/src/", src)
         self.assertIn("parsePdfFile(file)", app)
         self.assertIn("maxPdfPages", (ROOT / "config.js").read_text())
 

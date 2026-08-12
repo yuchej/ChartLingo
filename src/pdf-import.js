@@ -1,9 +1,10 @@
 let pdfJsLoader;
+const PDF_IMPORT_BASE_URL = new URL('.', document.currentScript.src);
 
 function loadPdfJs() {
   if (!pdfJsLoader) {
-    pdfJsLoader = import('/src/vendor/pdf.min.mjs?v=20260812-1').then(pdfjs => {
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL('/src/vendor/pdf.worker.min.mjs?v=20260812-1', window.location.origin).href;
+    pdfJsLoader = import(new URL('vendor/pdf.min.mjs?v=20260812-2', PDF_IMPORT_BASE_URL).href).then(pdfjs => {
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL('vendor/pdf.worker.min.mjs?v=20260812-2', PDF_IMPORT_BASE_URL).href;
       return pdfjs;
     }).catch(error => {
       console.error('ChartLingo PDF engine failed to load', error);
