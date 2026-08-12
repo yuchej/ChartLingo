@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ChartLingo</title>
   <link rel="stylesheet" href="styles.css?v=20260809-5">
+  <link rel="stylesheet" href="pdf-import.css?v=20260811-1">
 </head>
 <body>
   <header class="app-bar">
     <strong class="wordmark">ChartLingo</strong>
     <div class="file-actions">
-      <label class="toolbar-file" for="files"><span>Upload SVG</span><small id="svgFileName">No SVG loaded</small></label>
-      <input id="files" class="visually-hidden" type="file" accept="image/svg+xml,.svg" multiple>
+      <label class="toolbar-file" for="files"><span>Upload SVG / PDF</span><small id="svgFileName">No graphic loaded</small></label>
+      <input id="files" class="visually-hidden" type="file" accept="image/svg+xml,.svg,application/pdf,.pdf" multiple>
       <label class="toolbar-file" for="translationFile"><span>Upload CSV</span><small id="csvFileName">No CSV loaded</small></label>
       <input id="translationFile" class="visually-hidden" type="file" accept=".csv,.txt,text/csv,text/plain">
       <button id="generateEnglish" class="generate" disabled>Generate English Chart</button>
@@ -27,11 +28,11 @@
   </header>
 
   <main>
-    <section id="upload" class="upload-drop-target" aria-label="SVG drop target">
-      <p class="visually-hidden">Translation File. Match method. PDF, AI, PNG and JPG import are not enabled; export SVG from the source application first.</p>
-      <div id="importStatus" class="import-status" role="status" aria-live="polite">Ready for SVG import.</div>
+    <section id="upload" class="upload-drop-target" aria-label="SVG or PDF drop target">
+      <p class="visually-hidden">Translation File. Match method. SVG and text-preserving PDF import are enabled. AI, PNG and JPG import are not enabled.</p>
+      <div id="importStatus" class="import-status" role="status" aria-live="polite">Ready for SVG or text-preserving PDF import.</div>
       <div id="translationStatus" class="translation-status" role="status" aria-live="polite">No translation file loaded.</div>
-      <div id="generationStatus" class="generation-status" role="status" aria-live="polite">Upload an SVG and a translation file to enable generation.</div>
+      <div id="generationStatus" class="generation-status" role="status" aria-live="polite">Upload an SVG or PDF and a translation file to enable generation.</div>
     </section>
 
     <section id="workspace" class="workspace empty">
@@ -78,6 +79,6 @@
   </main>
 
   <div class="visually-hidden" aria-hidden="true"><span id="preflight"></span><select id="format"><option>PNG</option></select><select id="exportScope"><option value="card">Current card</option></select><input id="ack" type="checkbox" checked><button id="download" type="button">Download PNG</button></div>
-  <script src="config.js?v=20260809-15"></script><script src="src/core.js?v=20260809-15"></script><script src="src/exporters.js?v=20260809-15"></script><script src="src/app.js?v=20260809-15"></script>
+  <script src="config.js?v=20260812-1"></script><script src="src/core.js?v=20260812-1"></script><script src="src/pdf-import.js?v=20260812-1"></script><script src="src/exporters.js?v=20260812-1"></script><script src="src/app.js?v=20260812-1"></script>
 </body>
 </html>

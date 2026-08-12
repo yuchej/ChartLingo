@@ -96,9 +96,18 @@ class AcceptanceSmokeTests(unittest.TestCase):
 
     def test_ac025_honest_format_labels(self):
         ui = (ROOT / "index.html").read_text()
-        self.assertIn('PDF, AI, PNG and JPG import are not enabled', ui)
+        self.assertIn('SVG and text-preserving PDF import are enabled', ui)
+        self.assertIn('application/pdf,.pdf', ui)
         matrix = (ROOT / "docs/chinese-to-english-graphics-studio/SUPPORTED_FORMATS.md").read_text()
         self.assertRegex(matrix, r'AI \| Disabled \| Disabled')
+
+    def test_text_preserving_pdf_import_pipeline(self):
+        src = (ROOT / "src/pdf-import.js").read_text()
+        app = (ROOT / "src/app.js").read_text()
+        for token in ("getDocument", "getTextContent", "page.render", "pdf_text", "PDF_NO_SELECTABLE_TEXT", "pdf-text-mask", "pdf.worker.min.mjs", "mergePdfTextLines", "hasEOL"):
+            self.assertIn(token, src + app)
+        self.assertIn("parsePdfFile(file)", app)
+        self.assertIn("maxPdfPages", (ROOT / "config.js").read_text())
 
     def test_product_name_is_chartlingo(self):
         self.assertIn('ChartLingo', (ROOT/'index.html').read_text())

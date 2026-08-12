@@ -1,5 +1,6 @@
 const CONFIG = Object.freeze({
   maxFiles: 20,
+  maxPdfPages: 20,
   maxUploadBytes: 5 * 1024 * 1024,
   maxCanvasDimension: 12000,
   logoSafePadding: 16,

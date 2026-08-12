@@ -1,0 +1,3 @@
+.canvas > svg > .pdf-text-mask { display: none; }
+.canvas #chart-structure .pdf-text-mask { display: block; }
+

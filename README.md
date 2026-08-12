@@ -1,6 +1,6 @@
 # ChartLingo
 
-ChartLingo is a local, SVG-first newsroom graphics localization studio. It preserves the original canvas and Chinese source, maps approved third-party English into a separately editable Roboto layer, validates hard layout constraints, and exports at the original dimensions.
+ChartLingo is a local, SVG/PDF newsroom graphics localization studio. It preserves the original canvas and Chinese source, maps approved third-party English into a separately editable Roboto layer, validates hard layout constraints, and exports at the original dimensions.
 
 ## Run
 
@@ -12,7 +12,7 @@ To use a local web address instead, run:
 ruby -run -e httpd . -p 4173 -b 127.0.0.1
 ```
 
-Open `http://127.0.0.1:4173`. Upload one or more SVG fixtures from `test/fixtures/graphics-localization`, paste one approved English segment per line, then choose **Auto match & generate**. The upload area now reports importing, success, and per-file failure states and also accepts drag-and-drop.
+Open `http://127.0.0.1:4173`. Upload one or more SVG files or text-preserving PDFs, then add an approved CH/EN translation CSV and choose **Generate English Chart**. The upload area reports importing, success, and per-file failure states and also accepts drag-and-drop.
 
 ## Test
 
@@ -22,7 +22,7 @@ python3 -m unittest discover -s tests -v
 
 ## What is implemented
 
-- SVG-only multi-card import with stable IDs, exact canvas/viewBox capture and per-card failure isolation.
+- SVG and text-preserving PDF import with stable IDs, exact canvas/page capture and per-card failure isolation. Each PDF page becomes one card; outlined or scanned PDFs require OCR and are rejected with a clear message.
 - Active SVG content and external URLs are removed before DOM preview.
 - Canonical Chinese and English text objects, deterministic fake OCR/matcher, Datawrapper mojibake candidate selection and visible provenance in the scene model.
 - Approved copy segmentation without rewriting, basic mapping integrity, editable Roboto English and local autosave/history.
