@@ -79,6 +79,14 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("doc.textFrames[i].opacity = 0", exporter)
         self.assertIn("version: '0.3.0'", exporter)
 
+    def test_legacy_packages_warn_instead_of_failing(self):
+        core = (ROOT / "core.js").read_text()
+        app = (ROOT / "app.js").read_text()
+        self.assertIn("copy.legacyExporter=", core)
+        self.assertIn("Older package imported", app)
+        self.assertIn("LEGACY_EXPORTER", app)
+        self.assertNotIn("This package was made by an older Illustrator exporter", core)
+
     def test_original_application_paths_are_not_referenced_for_writes(self):
         for path in ROOT.rglob("*"):
             if path.is_file() and path.suffix in {".js", ".jsx", ".html"}:
