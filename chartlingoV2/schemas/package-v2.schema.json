@@ -15,6 +15,7 @@
         "revision": {"type": "string"},
         "name": {"type": "string"},
         "previewSvg": {"type": "string"},
+        "artworkSvg": {"type": "string"},
         "artboards": {
           "type": "array",
           "minItems": 1,

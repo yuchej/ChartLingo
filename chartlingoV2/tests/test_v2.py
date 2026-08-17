@@ -76,6 +76,8 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("sourceRetained&&original.visibleLines?.length>1", app)
         self.assertIn("readArtworkWithoutLiveText", exporter)
         self.assertIn("doc.textFrames[i].hidden = true", exporter)
+        self.assertIn("doc.textFrames[i].opacity = 0", exporter)
+        self.assertIn("version: '0.3.0'", exporter)
 
     def test_original_application_paths_are_not_referenced_for_writes(self):
         for path in ROOT.rglob("*"):
