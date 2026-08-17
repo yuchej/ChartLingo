@@ -12,7 +12,10 @@ ChartLingoV2 is a separate source-first prototype. It does not replace or modify
 - Deterministic English wrapping, font-size floor and boundary/overlap validation.
 - A 1200-pixel-wide English canvas whose height is calculated automatically from the source aspect ratio; artwork and typography scale uniformly.
 - Source SVG text is removed structurally before English is generated; V2 no longer paints white masks over Chinese text.
+- The Illustrator exporter hides live text while generating the artwork preview, so source glyph outlines are not duplicated behind English.
 - Text frames without a CSV match retain their original content, which keeps years, values and percentages visible.
+- Retained multi-line frames preserve their original visible lines instead of collapsing into one long line.
+- English remains anchored to the source text frame's exact top-left position; fitting uses wrapping and font reduction rather than movement.
 - Bundled Roboto Regular and Bold are used for measurement, preview, PNG and editable SVG export.
 - Direct SVG and PNG export from ChartLingoV2.
 - Optional `.chartlingo-result` export and Illustrator write-back prototype.

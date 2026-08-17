@@ -92,6 +92,16 @@
     try { temporary.remove(); } catch (_) {}
     return value;
   }
+  function readArtworkWithoutLiveText() {
+    var states = [], value = '', i;
+    for (i = 0; i < doc.textFrames.length; i++) {
+      states.push(doc.textFrames[i].hidden);
+      try { doc.textFrames[i].hidden = true; } catch (_) {}
+    }
+    try { value = readSvg(); }
+    finally { for (i = 0; i < doc.textFrames.length; i++) try { doc.textFrames[i].hidden = states[i]; } catch (_) {} }
+    return value;
+  }
 
   var artboards = [], i;
   for (i = 0; i < doc.artboards.length; i++) {
@@ -114,7 +124,7 @@
     artboards[boardIndex].textFrames.push({id: frameId(boardIndex, textIndex), name: frame.name || ('Text ' + (textIndex + 1)), sourceText: clean(frame.contents), visibleLines: visibleLines(frame), kind: frame.kind === TextType.AREATEXT ? 'area' : frame.kind === TextType.PATHTEXT ? 'path' : 'point', role: role(frame, textIndex), bounds: box, permittedRegion: {x: Math.max(0, box.x), y: Math.max(0, box.y - size * 0.5), width: Math.max(box.width, artboards[boardIndex].bounds.width - Math.max(0, box.x) - 12), height: Math.max(box.height, size * 4)}, style: {fontFamily: family, fontSize: size, lineHeight: leading / size, alignment: justify, fill: fill}, illustrator: {textFrameIndex: i, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
   }
   try { for (i = 0; i < doc.groupItems.length; i++) if (/outline|outlined/i.test(doc.groupItems[i].name)) outlinedCount++; } catch (_) {}
-  var packageData = {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.1.0'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase(), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, previewSvg: readSvg(), artboards: artboards}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+  var packageData = {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.2.0'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase(), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, previewSvg: readArtworkWithoutLiveText(), artboards: artboards}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   destination.encoding = 'UTF-8'; destination.open('w'); destination.write(jsonStringify(packageData, '  ', 0)); destination.close();
   alert('ChartLingoV2 package exported:\n' + destination.fsName + '\n\nLive text frames: ' + doc.textFrames.length + '\nArtboards: ' + doc.artboards.length);
 })();

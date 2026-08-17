@@ -68,6 +68,15 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertTrue((ROOT / "fonts/Roboto-Bold.ttf").is_file())
         self.assertTrue((ROOT / "fonts/OFL.txt").is_file())
 
+    def test_strict_positions_and_text_free_illustrator_preview(self):
+        core = (ROOT / "core.js").read_text()
+        app = (ROOT / "app.js").read_text()
+        exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
+        self.assertIn("x=frame.bounds.x,y=frame.bounds.y", core)
+        self.assertIn("sourceRetained&&original.visibleLines?.length>1", app)
+        self.assertIn("readArtworkWithoutLiveText", exporter)
+        self.assertIn("doc.textFrames[i].hidden = true", exporter)
+
     def test_original_application_paths_are_not_referenced_for_writes(self):
         for path in ROOT.rglob("*"):
             if path.is_file() and path.suffix in {".js", ".jsx", ".html"}:
