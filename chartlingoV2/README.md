@@ -10,6 +10,10 @@ ChartLingoV2 is a separate source-first prototype. It does not replace or modify
 - Translation CSV import with ID, exact, normalized and fuzzy matching.
 - One translation per Illustrator text frame, even when the frame renders on multiple lines.
 - Deterministic English wrapping, font-size floor and boundary/overlap validation.
+- A 1200-pixel-wide English canvas with source geometry expanded horizontally to provide more room for English.
+- Source SVG text is removed structurally before English is generated; V2 no longer paints white masks over Chinese text.
+- Text frames without a CSV match retain their original content, which keeps years, values and percentages visible.
+- Bundled Roboto Regular and Bold are used for measurement, preview, PNG and editable SVG export.
 - Direct SVG and PNG export from ChartLingoV2.
 - Optional `.chartlingo-result` export and Illustrator write-back prototype.
 - Original Chinese layers are not intentionally overwritten; write-back creates an `English - ChartLingoV2` layer and requires a new `.ai` save target.
@@ -51,7 +55,8 @@ The Illustrator scripts are capability prototypes. They must be validated on Ill
 - Multiple Illustrator artboards retain independent text frames, but the embedded full-artwork SVG preview is currently used only for a single-artboard package. Multi-artboard packages fall back to structured text previews until per-artboard Illustrator SVG export is validated.
 - Outlined text cannot be extracted and is reported for manual review only when the Illustrator object/layer naming provides evidence.
 - Text on paths, threaded text, clipping masks, mixed styles inside one frame and compound transforms need additional Illustrator capability tests.
-- PNG export depends on browser SVG rendering and installed fonts.
+- PNG export depends on browser SVG rendering, using the bundled Roboto files.
+- English SVG export embeds the bundled Roboto files. Illustrator handoff requires Roboto to be installed in Illustrator and reports substitutions when it is unavailable.
 - PDF export and embedded production fonts are not yet implemented in V2.
 - Write-back object IDs are deterministic for a stable document traversal order; persistent Illustrator object tagging still needs a capability spike.
 

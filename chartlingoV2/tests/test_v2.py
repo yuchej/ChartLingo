@@ -47,6 +47,25 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertNotIn("JSON.stringify", exporter)
         self.assertNotIn("JSON.parse", importer)
 
+    def test_v2_removes_source_text_and_uses_1200px_output(self):
+        core = (ROOT / "core.js").read_text()
+        app = (ROOT / "app.js").read_text()
+        self.assertIn("CLV2.removeSourceText", core)
+        self.assertIn("querySelectorAll('text,textPath,flowRoot,flowPara')", core)
+        self.assertIn("const width=1200", app)
+        self.assertNotIn("source-masks", app)
+        self.assertNotIn("source-mask", app)
+
+    def test_unmatched_text_is_retained_and_roboto_is_bundled(self):
+        core = (ROOT / "core.js").read_text()
+        app = (ROOT / "app.js").read_text()
+        self.assertIn("pair?.en||frame.sourceText", core)
+        self.assertIn("sourceRetained:!pair", core)
+        self.assertIn("fontPostScriptName:'Roboto-Regular'", app)
+        self.assertTrue((ROOT / "fonts/Roboto-Regular.ttf").is_file())
+        self.assertTrue((ROOT / "fonts/Roboto-Bold.ttf").is_file())
+        self.assertTrue((ROOT / "fonts/OFL.txt").is_file())
+
     def test_original_application_paths_are_not_referenced_for_writes(self):
         for path in ROOT.rglob("*"):
             if path.is_file() and path.suffix in {".js", ".jsx", ".html"}:

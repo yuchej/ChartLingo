@@ -36,7 +36,7 @@
   var englishLayer;
   try { englishLayer = doc.layers.getByName('English - ChartLingoV2'); } catch (_) { englishLayer = doc.layers.add(); englishLayer.name = 'English - ChartLingoV2'; }
   englishLayer.visible = true; englishLayer.locked = false;
-  var applied = 0, missing = 0;
+  var applied = 0, missing = 0, missingRoboto = 0;
   for (a = 0; a < result.artboards.length; a++) {
     var board = result.artboards[a], artboardIndex = a, rect = doc.artboards[artboardIndex].artboardRect;
     for (i = 0; i < board.textFrames.length; i++) {
@@ -47,12 +47,13 @@
       target.name = 'EN ' + (source.name || change.id);
       try { target.textRange.characterAttributes.size = layout.fontSize; } catch (_) {}
       try { target.textRange.characterAttributes.leading = layout.lineHeight; } catch (_) {}
-      try { target.textRange.characterAttributes.textFont = app.textFonts.getByName(change.style.fontFamily || 'Roboto-Regular'); } catch (_) {}
-      try { target.left = rect[0] + layout.x; target.top = rect[1] - layout.y; } catch (_) {}
-      try { if (target.kind === TextType.AREATEXT) { target.width = layout.width; target.height = layout.height; } } catch (_) {}
+      try { target.textRange.characterAttributes.textFont = app.textFonts.getByName(change.style.fontPostScriptName || 'Roboto-Regular'); } catch (_) { missingRoboto++; }
+      var scaleX = board.outputCanvas && board.outputCanvas.scaleX ? board.outputCanvas.scaleX : 1;
+      try { target.left = rect[0] + layout.x / scaleX; target.top = rect[1] - layout.y; } catch (_) {}
+      try { if (target.kind === TextType.AREATEXT) { target.width = layout.width / scaleX; target.height = layout.height; } } catch (_) {}
       applied++;
     }
   }
   var options = new IllustratorSaveOptions(); options.pdfCompatible = true; doc.saveAs(output, options);
-  alert('English result applied and saved:\n' + output.fsName + '\n\nApplied: ' + applied + '\nMissing source frames: ' + missing + '\n\nReview overflow and fonts before publishing.');
+  alert('English result applied and saved:\n' + output.fsName + '\n\nApplied: ' + applied + '\nMissing source frames: ' + missing + '\nRoboto substitutions: ' + missingRoboto + '\n\nReview overflow and fonts before publishing.');
 })();
