@@ -7,6 +7,35 @@
   if (!destination) return;
   if (!/\.chartlingo$/i.test(destination.name)) destination = new File(destination.fsName + '.chartlingo');
 
+  function jsonQuote(value) {
+    var escapes = {'"': '\\"', '\\': '\\\\', '\b': '\\b', '\f': '\\f', '\n': '\\n', '\r': '\\r', '\t': '\\t'};
+    return '"' + String(value).replace(/["\\\x00-\x1f\x7f-\x9f]/g, function (character) {
+      if (escapes[character]) return escapes[character];
+      var code = character.charCodeAt(0).toString(16);
+      return '\\u' + ('0000' + code).slice(-4);
+    }) + '"';
+  }
+  function jsonStringify(value, indent, level) {
+    indent = indent || ''; level = level || 0;
+    if (value === null) return 'null';
+    var type = typeof value;
+    if (type === 'string') return jsonQuote(value);
+    if (type === 'number') return isFinite(value) ? String(value) : 'null';
+    if (type === 'boolean') return value ? 'true' : 'false';
+    var current = '', next = '', parts = [], i, key;
+    for (i = 0; i < level; i++) current += indent;
+    next = current + indent;
+    if (value instanceof Array) {
+      for (i = 0; i < value.length; i++) parts.push(next + jsonStringify(value[i], indent, level + 1));
+      return parts.length ? '[\n' + parts.join(',\n') + '\n' + current + ']' : '[]';
+    }
+    if (type === 'object') {
+      for (key in value) if (value.hasOwnProperty(key) && typeof value[key] !== 'undefined' && typeof value[key] !== 'function') parts.push(next + jsonQuote(key) + ': ' + jsonStringify(value[key], indent, level + 1));
+      return parts.length ? '{\n' + parts.join(',\n') + '\n' + current + '}' : '{}';
+    }
+    return 'null';
+  }
+
   function clean(value) { return String(value || '').replace(/[\r\n]+/g, ' ').replace(/^\s+|\s+$/g, ''); }
   function frameId(artboardIndex, frameIndex) { return 'cl-tf-' + (artboardIndex + 1) + '-' + (frameIndex + 1); }
   function artboardFor(bounds) {
@@ -86,6 +115,6 @@
   }
   try { for (i = 0; i < doc.groupItems.length; i++) if (/outline|outlined/i.test(doc.groupItems[i].name)) outlinedCount++; } catch (_) {}
   var packageData = {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.1.0'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase(), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, previewSvg: readSvg(), artboards: artboards}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
-  destination.encoding = 'UTF-8'; destination.open('w'); destination.write(JSON.stringify(packageData, null, 2)); destination.close();
+  destination.encoding = 'UTF-8'; destination.open('w'); destination.write(jsonStringify(packageData, '  ', 0)); destination.close();
   alert('ChartLingoV2 package exported:\n' + destination.fsName + '\n\nLive text frames: ' + doc.textFrames.length + '\nArtboards: ' + doc.artboards.length);
 })();

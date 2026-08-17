@@ -7,7 +7,11 @@
   if (!resultFile) return;
   resultFile.encoding = 'UTF-8'; resultFile.open('r'); var raw = resultFile.read(); resultFile.close();
   var result;
-  try { result = JSON.parse(raw); } catch (_) { alert('The result file is not valid JSON.'); return; }
+  function jsonParse(value) {
+    if (!/^[\],:{}\s]*$/.test(value.replace(/\\["\\\/bfnrtu]/g, '@').replace(/"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g, ']').replace(/(?:^|:|,)(?:\s*\[)+/g, ''))) throw new Error('Unsafe JSON');
+    return eval('(' + value + ')');
+  }
+  try { result = jsonParse(raw); } catch (_) { alert('The result file is not valid JSON.'); return; }
   if (!result || result.schema !== 'https://chartlingo.local/schemas/result-v2.json') { alert('This is not a ChartLingoV2 result.'); return; }
   var expected = 'cl-doc-' + doc.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase();
   if (result.sourceDocument.id !== expected && !confirm('The result document ID does not match this Illustrator file. Continue anyway?')) return;

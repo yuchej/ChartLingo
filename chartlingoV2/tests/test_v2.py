@@ -39,6 +39,14 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("script,foreignObject,iframe,object,embed,audio,video", core)
         self.assertIn("name.startsWith('on')", core)
 
+    def test_illustrator_scripts_do_not_require_native_json(self):
+        exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
+        importer = (ROOT / "illustrator/apply-chartlingo-result.jsx").read_text()
+        self.assertIn("function jsonStringify", exporter)
+        self.assertIn("function jsonParse", importer)
+        self.assertNotIn("JSON.stringify", exporter)
+        self.assertNotIn("JSON.parse", importer)
+
     def test_original_application_paths_are_not_referenced_for_writes(self):
         for path in ROOT.rglob("*"):
             if path.is_file() and path.suffix in {".js", ".jsx", ".html"}:
