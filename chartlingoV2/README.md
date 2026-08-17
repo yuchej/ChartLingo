@@ -10,7 +10,7 @@ ChartLingoV2 is a separate source-first prototype. It does not replace or modify
 - Translation CSV import with ID, exact, normalized and fuzzy matching.
 - One translation per Illustrator text frame, even when the frame renders on multiple lines.
 - Deterministic English wrapping, font-size floor and boundary/overlap validation.
-- A 1200-pixel-wide English canvas with source geometry expanded horizontally to provide more room for English.
+- A 1200-pixel-wide English canvas whose height is calculated automatically from the source aspect ratio; artwork and typography scale uniformly.
 - Source SVG text is removed structurally before English is generated; V2 no longer paints white masks over Chinese text.
 - Text frames without a CSV match retain their original content, which keeps years, values and percentages visible.
 - Bundled Roboto Regular and Bold are used for measurement, preview, PNG and editable SVG export.

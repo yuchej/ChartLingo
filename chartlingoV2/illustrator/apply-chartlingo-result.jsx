@@ -48,9 +48,10 @@
       try { target.textRange.characterAttributes.size = layout.fontSize; } catch (_) {}
       try { target.textRange.characterAttributes.leading = layout.lineHeight; } catch (_) {}
       try { target.textRange.characterAttributes.textFont = app.textFonts.getByName(change.style.fontPostScriptName || 'Roboto-Regular'); } catch (_) { missingRoboto++; }
-      var scaleX = board.outputCanvas && board.outputCanvas.scaleX ? board.outputCanvas.scaleX : 1;
-      try { target.left = rect[0] + layout.x / scaleX; target.top = rect[1] - layout.y; } catch (_) {}
-      try { if (target.kind === TextType.AREATEXT) { target.width = layout.width / scaleX; target.height = layout.height; } } catch (_) {}
+      var scale = board.outputCanvas && (board.outputCanvas.scale || board.outputCanvas.scaleX) ? (board.outputCanvas.scale || board.outputCanvas.scaleX) : 1;
+      try { target.textRange.characterAttributes.size = layout.fontSize / scale; target.textRange.characterAttributes.leading = layout.lineHeight / scale; } catch (_) {}
+      try { target.left = rect[0] + layout.x / scale; target.top = rect[1] - layout.y / scale; } catch (_) {}
+      try { if (target.kind === TextType.AREATEXT) { target.width = layout.width / scale; target.height = layout.height / scale; } } catch (_) {}
       applied++;
     }
   }

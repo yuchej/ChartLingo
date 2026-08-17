@@ -53,6 +53,8 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("CLV2.removeSourceText", core)
         self.assertIn("querySelectorAll('text,textPath,flowRoot,flowPara')", core)
         self.assertIn("const width=1200", app)
+        self.assertIn("height=Math.round(artboard.bounds.height*scale)", app)
+        self.assertIn('transform="scale(${spec.scale})"', app)
         self.assertNotIn("source-masks", app)
         self.assertNotIn("source-mask", app)
 
