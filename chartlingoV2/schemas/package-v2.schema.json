@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chartlingo.local/schemas/package-v2.json",
+  "title": "ChartLingoV2 source package",
+  "type": "object",
+  "required": ["schema", "schemaVersion", "document"],
+  "properties": {
+    "schema": {"const": "https://chartlingo.local/schemas/package-v2.json"},
+    "schemaVersion": {"const": "2.0.0"},
+    "document": {
+      "type": "object",
+      "required": ["id", "revision", "name", "artboards"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "revision": {"type": "string"},
+        "name": {"type": "string"},
+        "previewSvg": {"type": "string"},
+        "artboards": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "bounds", "textFrames"],
+            "properties": {
+              "id": {"type": "string"},
+              "name": {"type": "string"},
+              "bounds": {"$ref": "#/$defs/rect"},
+              "textFrames": {"type": "array", "items": {"$ref": "#/$defs/textFrame"}}
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "rect": {"type": "object", "required": ["x", "y", "width", "height"], "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "width": {"type": "number", "exclusiveMinimum": 0}, "height": {"type": "number", "exclusiveMinimum": 0}}},
+    "textFrame": {"type": "object", "required": ["id", "sourceText", "bounds", "style"], "properties": {"id": {"type": "string"}, "sourceText": {"type": "string"}, "visibleLines": {"type": "array", "items": {"type": "string"}}, "bounds": {"$ref": "#/$defs/rect"}, "style": {"type": "object"}}}
+  }
+}

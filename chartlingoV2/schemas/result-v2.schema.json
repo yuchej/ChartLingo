@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chartlingo.local/schemas/result-v2.json",
+  "title": "ChartLingoV2 Illustrator result",
+  "type": "object",
+  "required": ["schema", "schemaVersion", "sourceDocument", "artboards", "validation"],
+  "properties": {
+    "schema": {"const": "https://chartlingo.local/schemas/result-v2.json"},
+    "schemaVersion": {"const": "2.0.0"},
+    "sourceDocument": {"type": "object", "required": ["id", "revision", "name"]},
+    "artboards": {"type": "array"},
+    "validation": {"type": "object"}
+  }
+}
