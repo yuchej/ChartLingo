@@ -19,7 +19,7 @@
   if (!output) return;
   if (!/\.ai$/i.test(output.name)) output = new File(output.fsName + '.ai');
 
-  function frameIndex(id) { var match = /^cl-tf-(\d+)-(\d+)$/.exec(id); return match ? {artboard: Number(match[1]) - 1, index: Number(match[2]) - 1} : null; }
+  function sourceFrameId(id) { var match = /^(cl-tf-\d+-\d+)(?:-r\d+-c\d+)?$/.exec(id); return match ? match[1] : id; }
   function framesOnArtboard(index) {
     var rect = doc.artboards[index].artboardRect, list = [];
     for (var i = 0; i < doc.textFrames.length; i++) {
@@ -40,7 +40,7 @@
   for (a = 0; a < result.artboards.length; a++) {
     var board = result.artboards[a], artboardIndex = a, rect = doc.artboards[artboardIndex].artboardRect;
     for (i = 0; i < board.textFrames.length; i++) {
-      var change = board.textFrames[i], source = sourceById[change.id];
+      var change = board.textFrames[i], source = sourceById[sourceFrameId(change.id)];
       if (!source) { missing++; continue; }
       var target = source.duplicate(englishLayer, ElementPlacement.PLACEATEND), layout = change.layout;
       target.contents = change.english;

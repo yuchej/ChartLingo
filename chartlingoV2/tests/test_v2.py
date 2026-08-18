@@ -90,7 +90,17 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("readArtworkWithoutLiveText", exporter)
         self.assertIn("doc.textFrames[i].hidden = true", exporter)
         self.assertIn("doc.textFrames[i].opacity = 0", exporter)
-        self.assertIn("version: '0.3.0'", exporter)
+        self.assertIn("version: '0.4.0'", exporter)
+
+    def test_illustrator_tab_tables_export_as_independent_cells(self):
+        exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
+        importer = (ROOT / "illustrator/apply-chartlingo-result.jsx").read_text()
+        self.assertIn("function tableRows", exporter)
+        self.assertIn("function tableColumns", exporter)
+        self.assertIn("'-r' + (rowIndex + 1) + '-c' + (columnIndex + 1)", exporter)
+        self.assertIn("kind: 'table-cell'", exporter)
+        self.assertIn("virtualCell: true", exporter)
+        self.assertIn("sourceFrameId(change.id)", importer)
 
     def test_legacy_packages_warn_instead_of_failing(self):
         core = (ROOT / "core.js").read_text()

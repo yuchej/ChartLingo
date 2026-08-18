@@ -54,6 +54,35 @@
     try { for (var i = 0; i < frame.lines.length; i++) values.push(clean(frame.lines[i].contents)); } catch (_) {}
     return values.length ? values : [clean(frame.contents)];
   }
+  function tableRows(frame) {
+    var raw = String(frame.contents || ''), rows = raw.split(/[\r\n]+/), result = [], i, cells, j, useful;
+    if (raw.indexOf('\t') < 0) return null;
+    for (i = 0; i < rows.length; i++) {
+      cells = rows[i].split('\t'); useful = false;
+      for (j = 0; j < cells.length; j++) { cells[j] = clean(cells[j]); if (cells[j]) useful = true; }
+      if (useful) result.push(cells);
+    }
+    return result.length ? result : null;
+  }
+  function tabAlignment(stop) {
+    try {
+      if (stop.alignment === TabStopAlignment.CENTER) return 'center';
+      if (stop.alignment === TabStopAlignment.RIGHT || stop.alignment === TabStopAlignment.DECIMAL) return 'right';
+    } catch (_) {}
+    return 'left';
+  }
+  function tableColumns(frame, count, width) {
+    var anchors = [0], aligns = ['left'], stops = null, i, step, boundaries = [0], columns = [];
+    try { stops = frame.paragraphs[0].paragraphAttributes.tabStops; } catch (_) {}
+    for (i = 1; i < count; i++) {
+      if (stops && stops.length >= i) { anchors.push(Math.max(0, Math.min(width, Number(stops[i - 1].position)))); aligns.push(tabAlignment(stops[i - 1])); }
+      else { step = width / count; anchors.push(step * i); aligns.push('left'); }
+    }
+    for (i = 1; i < anchors.length; i++) boundaries.push((anchors[i - 1] + anchors[i]) / 2);
+    boundaries.push(width);
+    for (i = 0; i < count; i++) columns.push({x: boundaries[i], width: Math.max(1, boundaries[i + 1] - boundaries[i]), alignment: aligns[i]});
+    return columns;
+  }
   function role(frame, index) {
     var hint = (frame.name + ' ' + frame.layer.name).toLowerCase();
     if (/title|headline/.test(hint) || index === 0) return 'TITLE';
@@ -114,23 +143,36 @@
     var rect = doc.artboards[i].artboardRect;
     artboards.push({id: 'artboard-' + (i + 1), name: doc.artboards[i].name || ('Artboard ' + (i + 1)), bounds: {x: 0, y: 0, width: rect[2] - rect[0], height: rect[1] - rect[3]}, textFrames: []});
   }
-  var counters = [];
+  var counters = [], exportedBlocks = 0, splitCells = 0;
   for (i = 0; i < artboards.length; i++) counters[i] = 0;
   var outlinedCount = 0;
   for (i = 0; i < doc.textFrames.length; i++) {
     var frame = doc.textFrames[i];
     if (frame.hidden || !frame.editable || !clean(frame.contents)) continue;
-    var bounds = frame.visibleBounds, boardIndex = artboardFor(bounds), boardRect = doc.artboards[boardIndex].artboardRect, box = localBounds(bounds, boardRect), textIndex = counters[boardIndex]++;
+    var bounds = frame.visibleBounds, boardIndex = artboardFor(bounds), boardRect = doc.artboards[boardIndex].artboardRect, box = localBounds(bounds, boardRect), textIndex = counters[boardIndex]++, baseId = frameId(boardIndex, textIndex);
     var size = 14, leading = 0, family = 'sans-serif', fill = '#14283f', justify = 'left';
     try { size = frame.textRange.characterAttributes.size || size; } catch (_) {}
     try { leading = frame.textRange.characterAttributes.leading || size * 1.2; } catch (_) { leading = size * 1.2; }
     try { family = frame.textRange.characterAttributes.textFont.family || frame.textRange.characterAttributes.textFont.name; } catch (_) {}
     try { fill = colorHex(frame.textRange.characterAttributes.fillColor); } catch (_) {}
     try { justify = alignment(frame.paragraphs[0].paragraphAttributes.justification); } catch (_) {}
-    artboards[boardIndex].textFrames.push({id: frameId(boardIndex, textIndex), name: frame.name || ('Text ' + (textIndex + 1)), sourceText: clean(frame.contents), visibleLines: visibleLines(frame), kind: frame.kind === TextType.AREATEXT ? 'area' : frame.kind === TextType.PATHTEXT ? 'path' : 'point', role: role(frame, textIndex), bounds: box, permittedRegion: {x: Math.max(0, box.x), y: Math.max(0, box.y - size * 0.5), width: Math.max(box.width, artboards[boardIndex].bounds.width - Math.max(0, box.x) - 12), height: Math.max(box.height, size * 4)}, style: {fontFamily: family, fontSize: size, lineHeight: leading / size, alignment: justify, fill: fill}, illustrator: {textFrameIndex: i, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
+    var rows = tableRows(frame), rowIndex, columnIndex, maxColumns = 0, columns, rowHeight, cell, cellBox;
+    if (rows) {
+      for (rowIndex = 0; rowIndex < rows.length; rowIndex++) if (rows[rowIndex].length > maxColumns) maxColumns = rows[rowIndex].length;
+      columns = tableColumns(frame, maxColumns, box.width); rowHeight = box.height / rows.length;
+      for (rowIndex = 0; rowIndex < rows.length; rowIndex++) for (columnIndex = 0; columnIndex < rows[rowIndex].length; columnIndex++) {
+        cell = rows[rowIndex][columnIndex]; if (!cell) continue;
+        cellBox = {x: box.x + columns[columnIndex].x, y: box.y + rowHeight * rowIndex, width: columns[columnIndex].width, height: rowHeight};
+        artboards[boardIndex].textFrames.push({id: baseId + '-r' + (rowIndex + 1) + '-c' + (columnIndex + 1), name: (frame.name || ('Text ' + (textIndex + 1))) + ' R' + (rowIndex + 1) + ' C' + (columnIndex + 1), sourceText: cell, visibleLines: [cell], kind: 'table-cell', role: 'DATA_LABEL', bounds: cellBox, permittedRegion: {x: cellBox.x, y: cellBox.y, width: cellBox.width, height: Math.max(cellBox.height, size * 1.5)}, style: {fontFamily: family, fontSize: size, lineHeight: leading / size, alignment: columns[columnIndex].alignment, fill: fill}, illustrator: {textFrameIndex: i, virtualCell: true, row: rowIndex, column: columnIndex, sourceFrameId: baseId, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
+        exportedBlocks++; splitCells++;
+      }
+    } else {
+      artboards[boardIndex].textFrames.push({id: baseId, name: frame.name || ('Text ' + (textIndex + 1)), sourceText: clean(frame.contents), visibleLines: visibleLines(frame), kind: frame.kind === TextType.AREATEXT ? 'area' : frame.kind === TextType.PATHTEXT ? 'path' : 'point', role: role(frame, textIndex), bounds: box, permittedRegion: {x: Math.max(0, box.x), y: Math.max(0, box.y - size * 0.5), width: Math.max(box.width, artboards[boardIndex].bounds.width - Math.max(0, box.x) - 12), height: Math.max(box.height, size * 4)}, style: {fontFamily: family, fontSize: size, lineHeight: leading / size, alignment: justify, fill: fill}, illustrator: {textFrameIndex: i, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
+      exportedBlocks++;
+    }
   }
   try { for (i = 0; i < doc.groupItems.length; i++) if (/outline|outlined/i.test(doc.groupItems[i].name)) outlinedCount++; } catch (_) {}
-  var packageData = {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.3.0'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase(), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, previewSvg: readSvg(), artworkSvg: readArtworkWithoutLiveText(), artboards: artboards}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+  var packageData = {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.4.0'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase(), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, previewSvg: readSvg(), artworkSvg: readArtworkWithoutLiveText(), artboards: artboards}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   destination.encoding = 'UTF-8'; destination.open('w'); destination.write(jsonStringify(packageData, '  ', 0)); destination.close();
-  alert('ChartLingoV2 package exported:\n' + destination.fsName + '\n\nLive text frames: ' + doc.textFrames.length + '\nArtboards: ' + doc.artboards.length);
+  alert('ChartLingoV2 package exported:\n' + destination.fsName + '\n\nExporter: 0.4.0\nIllustrator text frames: ' + doc.textFrames.length + '\nPackage text blocks: ' + exportedBlocks + '\nTable cells split: ' + splitCells + '\nArtboards: ' + doc.artboards.length);
 })();
