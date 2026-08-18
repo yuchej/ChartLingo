@@ -67,7 +67,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("Use original Chinese content", app)
         self.assertIn("manual-match", app)
         self.assertIn("if(score<.82)pair=null", core)
-        self.assertIn("fontPostScriptName:'Roboto-Regular'", app)
+        self.assertIn("'Roboto-Bold':'Roboto-Regular'", app)
         self.assertTrue((ROOT / "fonts/Roboto-Regular.ttf").is_file())
         self.assertTrue((ROOT / "fonts/Roboto-Bold.ttf").is_file())
         self.assertTrue((ROOT / "fonts/OFL.txt").is_file())
@@ -81,6 +81,22 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("object.layout.y=", app)
         self.assertIn("cursor:grab", styles)
 
+    def test_reference_title_style_and_source_locked_geometry(self):
+        core = (ROOT / "core.js").read_text()
+        app = (ROOT / "app.js").read_text()
+        exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
+        self.assertIn("CLV2.originalLayout", core)
+        self.assertIn("sourceLocked:true", core)
+        self.assertIn("function referenceTitleFrame", app)
+        self.assertIn("x:spec.width*.09", app)
+        self.assertIn("y:spec.height*.04", app)
+        self.assertIn("fontSize:spec.width*.0612", app)
+        self.assertIn("fontWeight:700", app)
+        self.assertIn("mapping.sourceRetained?CLV2.originalLayout", app)
+        self.assertIn("fontPostScriptName:fontWeight>=600?'Roboto-Bold'", app)
+        self.assertIn("candidate.bounds.y > artboards[i].bounds.height * 0.25", exporter)
+        self.assertIn("titleCandidate.style.fontWeight = 700", exporter)
+
     def test_strict_positions_and_text_free_illustrator_preview(self):
         core = (ROOT / "core.js").read_text()
         app = (ROOT / "app.js").read_text()
@@ -90,7 +106,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("readArtworkWithoutLiveText", exporter)
         self.assertIn("doc.textFrames[i].hidden = true", exporter)
         self.assertIn("doc.textFrames[i].opacity = 0", exporter)
-        self.assertIn("version: '0.4.0'", exporter)
+        self.assertIn("version: '0.4.1'", exporter)
 
     def test_illustrator_tab_tables_export_as_independent_cells(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()

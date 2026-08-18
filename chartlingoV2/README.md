@@ -14,7 +14,7 @@ ChartLingoV2 is a separate source-first prototype. It does not replace or modify
 - Source SVG text is removed structurally before English is generated; V2 no longer paints white masks over Chinese text.
 - The Illustrator exporter hides live text while generating the artwork preview, so source glyph outlines are not duplicated behind English.
 - Packages contain both `previewSvg` (the complete Chinese reference) and `artworkSvg` (the same artwork with live text hidden) so the original and English panels use the correct source.
-- Illustrator exporter 0.4.0 detects tab-delimited table text frames and exports every non-empty row/column cell as an independent virtual text block. Ordinary multiline titles remain one translation object.
+- Illustrator exporter 0.4.1 detects tab-delimited table text frames and exports every non-empty row/column cell as an independent virtual text block. It also records font weight and detects the main title from its position and size. Ordinary multiline titles remain one translation object.
 - Text frames without a CSV match retain their original content, which keeps years, values and percentages visible.
 - Retained multi-line frames preserve their original visible lines instead of collapsing into one long line.
 - English remains anchored to the source text frame's exact top-left position; fitting uses wrapping and font reduction rather than movement.
