@@ -63,10 +63,23 @@ class ChartLingoV2Tests(unittest.TestCase):
         app = (ROOT / "app.js").read_text()
         self.assertIn("pair?.en||frame.sourceText", core)
         self.assertIn("sourceRetained:!pair", core)
+        self.assertIn("function updateMapping", app)
+        self.assertIn("Use original Chinese content", app)
+        self.assertIn("manual-match", app)
+        self.assertIn("if(score<.82)pair=null", core)
         self.assertIn("fontPostScriptName:'Roboto-Regular'", app)
         self.assertTrue((ROOT / "fonts/Roboto-Regular.ttf").is_file())
         self.assertTrue((ROOT / "fonts/Roboto-Bold.ttf").is_file())
         self.assertTrue((ROOT / "fonts/OFL.txt").is_file())
+
+    def test_generated_text_can_be_dragged_and_exported_at_new_position(self):
+        app = (ROOT / "app.js").read_text()
+        styles = (ROOT / "styles.css").read_text()
+        self.assertIn("function bindCanvasDragging", app)
+        self.assertIn("node.onpointerdown", app)
+        self.assertIn("object.layout.x=", app)
+        self.assertIn("object.layout.y=", app)
+        self.assertIn("cursor:grab", styles)
 
     def test_strict_positions_and_text_free_illustrator_preview(self):
         core = (ROOT / "core.js").read_text()
