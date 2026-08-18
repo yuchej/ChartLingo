@@ -92,10 +92,22 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("y:spec.height*.04", app)
         self.assertIn("fontSize:spec.width*.0612", app)
         self.assertIn("fontWeight:700", app)
-        self.assertIn("mapping.sourceRetained?CLV2.originalLayout", app)
+        self.assertIn("mapping.sourceRetained||source.referenceMatched?CLV2.originalLayout", app)
         self.assertIn("fontPostScriptName:fontWeight>=600?'Roboto-Bold'", app)
         self.assertIn("candidate.bounds.y > artboards[i].bounds.height * 0.25", exporter)
         self.assertIn("titleCandidate.style.fontWeight = 700", exporter)
+
+    def test_per_chart_reference_package_drives_translated_geometry(self):
+        index = (ROOT / "index.html").read_text()
+        app = (ROOT / "app.js").read_text()
+        self.assertIn('id="referenceInput"', index)
+        self.assertIn("referencePkg:null", app)
+        self.assertIn("function referenceFrame", app)
+        self.assertIn("referenceKey(item.sourceText)===referenceKey(english)", app)
+        self.assertIn("referenceMatched:true", app)
+        self.assertIn("source.referenceMatched?CLV2.originalLayout", app)
+        self.assertIn("English reference imported", app)
+        self.assertIn("Unmatched source geometry stayed unchanged", app)
 
     def test_strict_positions_and_text_free_illustrator_preview(self):
         core = (ROOT / "core.js").read_text()
