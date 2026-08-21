@@ -117,3 +117,5 @@ Send:
 - CSV file.
 - Screenshot of the problem.
 - Short description of the expected result.
+
+**Happy testing!**
