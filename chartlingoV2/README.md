@@ -2,6 +2,8 @@
 
 ChartLingoV2 is a separate source-first prototype. It does not replace or modify the original ChartLingo application in the repository root.
 
+For team testing and step-by-step Illustrator setup, see the [ChartLingoV2 Team User Guide](USER_GUIDE.md).
+
 ## Included vertical slice
 
 - Versioned `.chartlingo` structured interchange format.
@@ -14,7 +16,13 @@ ChartLingoV2 is a separate source-first prototype. It does not replace or modify
 - Source SVG text is removed structurally before English is generated; V2 no longer paints white masks over Chinese text.
 - The Illustrator exporter hides live text while generating the artwork preview, so source glyph outlines are not duplicated behind English.
 - Packages contain both `previewSvg` (the complete Chinese reference) and `artworkSvg` (the same artwork with live text hidden) so the original and English panels use the correct source.
-- Illustrator exporter 0.4.1 detects tab-delimited table text frames and exports every non-empty row/column cell as an independent virtual text block. It also records font weight and detects the main title from its position and size. Ordinary multiline titles remain one translation object.
+- Illustrator exporter 0.6.1 defaults to one selected artboard, shows a lightweight document preflight, reports progress, supports cancellation, and restores temporary text visibility changes safely. Batch modes remain explicit; objects are scanned once, assigned only to intersecting selected artboards, and rendered sequentially into cropped artboard-local SVGs.
+- Merged chart content records a structural `styleRole` and inherits only from a same-level sibling. Same-row siblings take priority, followed by the dominant same-role style in the surrounding chart section; translation length and wrapped-line count do not choose the font size.
+- Chart-content objects support per-object Auto, Single line, and Manual line-break modes. Headline, subtitle, footer, Source, and Credit objects are excluded from this control.
+- Multiple chart-content objects can be selected in the mapping panel and merged into one canonical CSV field. The merged output records `mergedFrom` and `csvField`, inherits the surrounding header typography and column geometry, and remains one logical translation item even when it wraps visually.
+- Merged headers store `styleReferenceId` and `inheritStyle`. The editor automatically chooses the nearest sibling header in the same row, or accepts an explicit style reference before merging. Font size is inherited directly and may shrink by no more than 10% only when wrapped text cannot fit vertically.
+- The English preview has per-artboard Undo and Redo history for dragging, text edits, CSV remapping, line-break changes, and merge operations. Generating a new English chart starts a fresh edit history.
+- Unmatched numeric values use the source artboard as their coordinate system and are mapped proportionally to the 1200px-wide English output. Source/Credit wrap inside the dynamically calculated space before the logo, and only the bottom area grows when extra lines are required.
 - An optional per-chart English reference package supplies exact geometry, line breaks, font size and alignment for matching translated frames while the source package continues to supply the artwork.
 - Reference matching uses normalized approved English text. Titles are always Roboto Bold, credits follow their reference frames, and CSV-unmatched content keeps the source package geometry unchanged.
 - Text frames without a CSV match retain their original content, which keeps years, values and percentages visible.

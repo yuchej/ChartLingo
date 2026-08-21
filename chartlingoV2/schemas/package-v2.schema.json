@@ -25,8 +25,19 @@
             "properties": {
               "id": {"type": "string"},
               "name": {"type": "string"},
+              "index": {"type": "integer", "minimum": 0},
+              "order": {"type": "integer", "minimum": 0},
+              "position": {"type": "object", "required": ["x", "y"], "properties": {"x": {"type": "number"}, "y": {"type": "number"}}},
+              "orientation": {"enum": ["portrait", "landscape"]},
+              "background": {"type": "object"},
+              "objectCount": {"type": "integer", "minimum": 0},
+              "layerNames": {"type": "array", "items": {"type": "string"}},
               "bounds": {"$ref": "#/$defs/rect"},
-              "textFrames": {"type": "array", "items": {"$ref": "#/$defs/textFrame"}}
+              "logoBounds": {"$ref": "#/$defs/rect"},
+              "previewSvg": {"type": "string"},
+              "artworkSvg": {"type": "string"},
+              "textFrames": {"type": "array", "items": {"$ref": "#/$defs/textFrame"}},
+              "graphicElements": {"type": "array", "items": {"$ref": "#/$defs/graphicElement"}}
             }
           }
         }
@@ -35,6 +46,7 @@
   },
   "$defs": {
     "rect": {"type": "object", "required": ["x", "y", "width", "height"], "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "width": {"type": "number", "exclusiveMinimum": 0}, "height": {"type": "number", "exclusiveMinimum": 0}}},
-    "textFrame": {"type": "object", "required": ["id", "sourceText", "bounds", "style"], "properties": {"id": {"type": "string"}, "sourceText": {"type": "string"}, "visibleLines": {"type": "array", "items": {"type": "string"}}, "bounds": {"$ref": "#/$defs/rect"}, "style": {"type": "object"}}}
+    "textFrame": {"type": "object", "required": ["id", "sourceText", "bounds", "style"], "properties": {"id": {"type": "string"}, "sourceText": {"type": "string"}, "groupId": {"type": "string"}, "metricGroupId": {"type": "string"}, "slot": {"enum": ["label", "value", "change-row"]}, "layoutRole": {"enum": ["metric-label", "metric-value", "metric-change"]}, "fieldType": {"enum": ["year", "quarter", "month", "period", "credit", "source"]}, "contentType": {"enum": ["chart", "graphic-label", "graphic-value", "graphic-percentage"]}, "styleRole": {"type": "string"}, "lineBreakMode": {"enum": ["auto", "single-line", "manual", "match-source"]}, "manualLines": {"type": "array", "items": {"type": "string"}}, "translationLayout": {"type": "object", "properties": {"mode": {"enum": ["auto", "single-line", "manual", "match-source"]}, "width": {"type": ["number", "null"], "exclusiveMinimum": 0}, "inheritSourceWidth": {"type": "boolean"}, "manualLines": {"type": "array", "items": {"type": "string"}}}}, "visibleLines": {"type": "array", "items": {"type": "string"}}, "bounds": {"$ref": "#/$defs/rect"}, "style": {"type": "object"}}},
+    "graphicElement": {"type": "object", "required": ["id", "contentType", "bounds", "style"], "properties": {"id": {"type": "string"}, "contentType": {"enum": ["indicator", "vector"]}, "metricGroupId": {"type": "string"}, "slot": {"enum": ["change-row"]}, "layoutRole": {"enum": ["indicator", "graphic"]}, "direction": {"type": ["string", "null"], "enum": ["up", "down", null]}, "bounds": {"$ref": "#/$defs/rect"}, "points": {"type": "array"}, "style": {"type": "object", "properties": {"fill": {"type": ["string", "null"]}, "sourceColor": {"type": ["string", "null"]}, "opacity": {"type": "number"}, "preserveOriginalColor": {"const": true}}}}}
   }
 }

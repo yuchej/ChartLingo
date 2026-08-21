@@ -4,72 +4,93 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ChartLingoV2</title>
-  <link rel="stylesheet" href="styles.css?v=20260818-3">
+  <link rel="stylesheet" href="styles.css?v=20260821-11">
 </head>
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-mark">CL</span><span>ChartLingoV2</span></div>
     <div class="top-actions">
-      <label class="button primary">Import Illustrator Package<input id="packageInput" type="file" accept=".chartlingo,.json,application/json"></label>
+      <label class="button">Import Illustrator Package<input id="packageInput" type="file" accept=".chartlingo,.json,application/json"></label>
       <label class="button">Import CH/EN CSV<input id="csvInput" type="file" accept=".csv,text/csv"></label>
-      <label class="button">Import English Reference<input id="referenceInput" type="file" accept=".chartlingo,.json,application/json"></label>
-      <button id="loadSample" class="button ghost">Load sample</button>
+      <button id="generate" class="button primary" disabled>Generate English</button>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <details class="export-menu">
+        <summary class="button">Export <span aria-hidden="true">▾</span></summary>
+        <div class="export-menu-popover" role="menu" aria-label="Export format">
+          <button id="exportSvg" class="export-option" role="menuitem" disabled>Export SVG</button>
+          <button id="exportPng" class="export-option" role="menuitem" disabled>Export PNG</button>
+          <button id="exportResult" class="export-option" role="menuitem" disabled>Send to Illustrator</button>
+        </div>
+      </details>
     </div>
   </header>
 
   <main>
-    <section id="emptyState" class="empty-state">
-      <p class="eyebrow">Structured graphics localization</p>
-      <h1>Bring Illustrator structure into a safer English workflow.</h1>
-      <p>Import a <code>.chartlingo</code> package created by the Illustrator prototype. Text frames remain paragraphs, even when Illustrator displays them on multiple lines.</p>
-      <ol>
-        <li>Export live text and artboards from Illustrator.</li>
-        <li>Match approved Chinese and English copy.</li>
-        <li>Review, fit and export—or return complex work to Illustrator.</li>
-      </ol>
-    </section>
-
-    <section id="app" hidden>
-      <div class="projectbar">
-        <div><span class="eyebrow">Project</span><strong id="projectName"></strong></div>
-        <div id="statusSummary" class="status-summary"></div>
-        <div class="project-actions">
-          <button id="generate" class="button primary" disabled>Generate English</button>
-          <button id="validate" class="button">Run checks</button>
-          <button id="exportSvg" class="button">Export SVG</button>
-          <button id="exportPng" class="button">Export PNG</button>
-          <button id="exportResult" class="button">Send to Illustrator</button>
-        </div>
+    <section id="app">
+      <div class="projectbar" hidden>
+        <div><span class="eyebrow">Project</span><strong id="projectName">No package loaded</strong></div>
+        <div id="statusSummary" hidden></div>
+        <button id="validate" hidden disabled></button>
       </div>
 
       <nav id="artboardTabs" class="artboard-tabs" aria-label="Artboards"></nav>
 
-      <div class="workspace">
-        <section class="canvas-panel">
+      <div class="gallery-workspace">
+        <section class="canvas-panel source-panel">
           <div class="panel-heading"><div><span class="eyebrow">Original</span><h2>Chinese source</h2></div><span id="sourceDimensions"></span></div>
-          <div id="sourceCanvas" class="canvas-host"></div>
+          <div id="sourceCanvas" class="canvas-host" tabindex="0" title="Open English editing view"><div class="panel-placeholder"><strong>Chinese source</strong><span>Import an Illustrator package</span></div></div>
         </section>
-        <section class="canvas-panel">
-          <div class="panel-heading"><div><span class="eyebrow">Output</span><h2>English preview</h2></div><span id="outputDimensions"></span></div>
-          <div id="outputCanvas" class="canvas-host"></div>
+        <section class="editing-studio">
+          <section id="editorReferencePanel" class="canvas-panel editor-reference-panel" hidden>
+            <div class="panel-heading"><div><span class="eyebrow">Reference</span><h2>Chinese source</h2></div></div>
+            <div id="editorSourceCanvas" class="canvas-host"></div>
+          </section>
+          <aside id="textInspector" class="text-inspector" hidden>
+            <div class="panel-heading"><div><span class="eyebrow">Text editor</span><h2 id="inspectorTitle">Edit English text</h2></div><span id="inspectorCategory"></span></div>
+            <button id="exitEditor" type="button" hidden></button>
+            <div id="selectionCount" class="selection-count">1 text element selected</div>
+            <fieldset hidden aria-hidden="true"><input type="radio" name="editScope" value="selected" checked><input type="radio" name="editScope" value="manual"><input type="radio" name="editScope" value="same-type"></fieldset>
+            <section id="multiAlignTools" class="multi-align-tools" aria-label="Align selected items" hidden>
+              <div class="multi-align-heading">Align selected items</div>
+              <div class="alignment-toolbar" role="toolbar" aria-label="Selection alignment">
+                <button type="button" data-align-action="top" title="Align top edges" aria-label="Align top edges" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="align-guide" d="M3 4h18"/><path d="M7 7h4v11H7zM14 7h4v7h-4z"/></svg></button><button type="button" data-align-action="vcenter" title="Align vertical centers" aria-label="Align vertical centers" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="align-guide" d="M12 2v20"/><path d="M4 9h6v6H4zM14 6h6v12h-6z"/></svg></button><button type="button" data-align-action="bottom" title="Align bottom edges" aria-label="Align bottom edges" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="align-guide" d="M3 20h18"/><path d="M6 8h5v9H6zM14 4h5v13h-5z"/></svg></button>
+              </div>
+            </section>
+            <details class="inspector-section" open><summary>Content</summary><div class="inspector-body"><label class="inspector-wide">Text<textarea id="editText" rows="3"></textarea></label></div></details>
+            <details class="inspector-section" open><summary>Typography</summary><div class="inspector-body">
+              <label>Font family<input id="editFontFamily" type="text"></label><label>Font size<input id="editFontSize" type="number" min="1" step="0.5" placeholder="Mixed"></label>
+              <label>Font weight<select id="editFontWeight"><option value="">Mixed</option><option value="400">Regular</option><option value="500">Medium</option><option value="600">Semibold</option><option value="700">Bold</option><option value="800">Extra bold</option></select></label><label>Text color<input id="editColor" type="color"></label>
+              <label>Line height<input id="editLineHeight" type="number" min="0.5" step="0.05" placeholder="Mixed"></label><label>Letter spacing<input id="editLetterSpacing" type="number" step="0.1" placeholder="Mixed"></label>
+              <label>Text-box width (px)<input id="editWidth" type="number" min="1" step="1"></label><label>Line-break mode<select id="editLineBreakMode"><option value="">Mixed</option><option value="auto">Auto</option><option value="single-line">Single line</option><option value="manual">Manual</option><option value="match-source">Match source layout</option></select></label>
+              <div class="control-group"><span>Horizontal alignment</span><div id="horizontalAlignment" class="icon-toggle" role="group" aria-label="Horizontal alignment"><button type="button" data-value="left" title="Align left" aria-label="Align left">☰</button><button type="button" data-value="center" title="Align center" aria-label="Align center">☷</button><button type="button" data-value="right" title="Align right" aria-label="Align right">≡</button></div></div>
+              <div class="control-group"><span>Vertical alignment</span><div id="verticalAlignment" class="icon-toggle" role="group" aria-label="Vertical alignment"><button type="button" data-value="top" title="Align top" aria-label="Align top">↥</button><button type="button" data-value="middle" title="Align middle" aria-label="Align middle">↕</button><button type="button" data-value="bottom" title="Align bottom" aria-label="Align bottom">↧</button></div></div>
+              <div class="inspector-subheading inspector-wide">Text outline and fill</div>
+              <label class="toggle-label"><input id="editBorderEnabled" type="checkbox"> Text outline enabled</label><label>Outline color<input id="editBorderColor" type="color"></label>
+              <label>Outline width<input id="editBorderWidth" type="number" min="0" step="0.5"></label><label>Outline style<select id="editBorderStyle"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label>
+              <label>Outline opacity<input id="editBorderOpacity" type="number" min="0" max="1" step="0.05"></label><label>Stroke position<select id="editStrokeAlignment"><option value="center">Center</option><option value="outside">Outside</option></select></label>
+            </div></details>
+            <div hidden aria-hidden="true"><input id="editRotation"><input id="editX"><input id="editY"><input id="editHeight"><input id="editBorderRadius"><input id="editBoxFill"><input id="editFillOpacity"></div>
+            <div hidden aria-hidden="true"><button id="inspectorUndo"></button><button id="resetGenerated"></button><button id="resetSourceStyle"></button><button id="cancelInspector"></button></div>
+          </aside>
+          <section class="english-editor-preview">
+            <div class="panel-heading"><div><span class="eyebrow">Output</span><h2>English graphic</h2></div><div class="preview-actions"><span id="outputDimensions"></span><button id="toggleReference" class="button" type="button" aria-pressed="false">Show Chinese reference</button><button id="openEditor" class="button">Edit graphic</button><button id="undoEdit" class="button" disabled>↶ Undo</button><button id="redoEdit" class="button" disabled>↷ Redo</button><button id="applyInspector" class="button primary">Apply</button></div></div>
+            <div id="outputCanvas" class="canvas-host" tabindex="0" title="Open English editing view"><div class="panel-placeholder"><strong>English preview</strong><span>Upload files and generate English</span></div></div>
+          </section>
         </section>
-      </div>
+      </section>
 
-      <div class="lower-grid">
+      <div class="lower-grid" hidden>
         <section class="work-panel">
-          <div class="panel-heading"><div><span class="eyebrow">Mappings</span><h2>Approved copy</h2></div><span id="coverage"></span></div>
-          <div id="mappingTable" class="mapping-table"></div>
+          <div class="panel-heading mapping-heading"><div><span class="eyebrow">Mappings</span><h2>Approved copy</h2></div><div class="merge-tools"><span id="coverage"></span><select id="mergeCsvField" aria-label="CSV field for merged text" disabled><option value="">Choose CSV field</option></select><select id="mergeStyleReference" aria-label="Style reference for merged text" disabled><option value="">Auto style reference</option></select><button id="mergeSelected" class="button" disabled>Merge selected text and regenerate from CSV</button></div></div>
+          <div id="mappingTable" class="mapping-table"><div class="panel-placeholder compact"><strong>No mappings yet</strong><span>Import a package and CH/EN CSV</span></div></div>
         </section>
-        <aside class="work-panel issues-panel">
-          <div class="panel-heading"><div><span class="eyebrow">Preflight</span><h2>Exceptions</h2></div></div>
-          <div id="issues"></div>
-        </aside>
+        <div id="issues" hidden></div>
       </div>
     </section>
   </main>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="core.js?v=20260818-3"></script>
-  <script src="app.js?v=20260818-3"></script>
+    <script src="core.js?v=20260821-01"></script>
+    <script src="app.js?v=20260821-16"></script>
 </body>
 </html>
