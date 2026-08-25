@@ -45,16 +45,15 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("board.textFrames=CLV2.atomicTextFrames", core)
         self.assertIn("data-group-id", app)
         self.assertIn("data-field-type", app)
-        self.assertIn("groupId:o.originalSource.groupId", app)
         self.assertIn('"groupId"', package_schema)
         self.assertIn('"fieldType"', package_schema)
         self.assertIn('"pairId"', result_schema)
 
-    def test_direct_and_illustrator_exports_exist(self):
+    def test_direct_exports_exist(self):
         app = (ROOT / "app.js").read_text()
         self.assertIn("function exportSvg()", app)
         self.assertIn("function exportPng()", app)
-        self.assertIn("function exportResult()", app)
+        self.assertNotIn("function exportResult()", app)
         self.assertTrue((ROOT / "illustrator/export-to-chartlingo.jsx").is_file())
         self.assertTrue((ROOT / "illustrator/apply-chartlingo-result.jsx").is_file())
 
@@ -93,7 +92,6 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("Use original Chinese content", app)
         self.assertIn("manual-match", app)
         self.assertIn("if(score<.82)pair=null", core)
-        self.assertIn("'Roboto-Bold':'Roboto-Regular'", app)
         self.assertTrue((ROOT / "fonts/Roboto-Regular.ttf").is_file())
         self.assertTrue((ROOT / "fonts/Roboto-Bold.ttf").is_file())
         self.assertTrue((ROOT / "fonts/OFL.txt").is_file())
@@ -119,8 +117,6 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("fontSize=65*scale", app)
         self.assertIn("fontWeight:700", app)
         self.assertIn("object.numericLocked||object.sourceRetained||object.source.referenceMatched", app)
-        self.assertIn("fontFamily=o.source.style.fontFamily||'Roboto'", app)
-        self.assertIn("fontPostScriptName:postScript", app)
         self.assertIn("candidate.bounds.y > artboards[i].bounds.height * 0.25", exporter)
         self.assertIn("titleCandidate.style.fontWeight = 700", exporter)
 
@@ -156,7 +152,6 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("expandOnly&&previous", app)
         self.assertIn("cropBottom-cropTop", app)
         self.assertIn('id="english-layer" transform="translate(0 ${-spec.cropTop})"', app)
-        self.assertIn("y:o.layout.y-spec.cropTop", app)
 
     def test_plain_list_labels_share_a_font_size(self):
         app = (ROOT / "app.js").read_text()
@@ -202,24 +197,25 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("method:numericLocked?'source coordinates'", app)
         self.assertNotIn("method:numericReference?'reference cell'", app)
 
-    def test_strict_positions_and_text_free_illustrator_preview(self):
+    def test_strict_positions_and_browser_text_removal(self):
         core = (ROOT / "core.js").read_text()
         app = (ROOT / "app.js").read_text()
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         self.assertIn("x=frame.bounds.x,y=frame.bounds.y", core)
         self.assertIn("sourceRetained&&original.visibleLines?.length>1", app)
-        self.assertIn("readArtworkWithoutLiveText", exporter)
-        self.assertIn("doc.textFrames[frameIndex].hidden = true", exporter)
-        self.assertIn("doc.textFrames[frameIndex].opacity = 0", exporter)
-        self.assertIn("version: '0.6.1'", exporter)
+        self.assertIn("artboards[i].artworkSvg = null", exporter)
+        self.assertIn("CLV2.removeSourceText", core)
+        self.assertIn("version: '0.6.4'", exporter)
 
-    def test_illustrator_exporter_supports_independent_multi_artboards(self):
+    def test_illustrator_exporter_exports_only_active_artboard(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
-        self.assertIn("function chooseArtboards", exporter)
-        self.assertIn("Selected artboard", exporter)
-        self.assertIn("All artboards in one package", exporter)
-        self.assertIn("Specific range in one package", exporter)
-        self.assertIn("Each artboard as a separate package", exporter)
+        self.assertNotIn("function chooseArtboards", exporter)
+        self.assertNotIn("All artboards in one package", exporter)
+        self.assertNotIn("Specific range in one package", exporter)
+        self.assertNotIn("Each artboard as a separate package", exporter)
+        self.assertIn("activeArtboardIndex = doc.artboards.getActiveArtboardIndex()", exporter)
+        self.assertIn("selectedIndices = [activeArtboardIndex]", exporter)
+        self.assertIn("exportMode: 'selected'", exporter)
         self.assertIn("function artboardFor(bounds)", exporter)
         self.assertIn("area > bestArea", exporter)
         self.assertIn("if (boardIndex < 0", exporter)
@@ -231,18 +227,18 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("new Window('palette', 'ChartLingoV2 Export')", exporter)
         self.assertIn("Cancel export", exporter)
         self.assertIn("function progress(stage, current, total, artboardName)", exporter)
-        self.assertIn("Preflight:", exporter)
-        self.assertIn("Large/complex document detected", exporter)
-        self.assertIn("readArtworkWithoutLiveText(artboardIndex, artboardRecord)", exporter)
-        self.assertIn("states.push({index: frameIndex", exporter)
+        self.assertIn("artboards[i].previewSvg = readSvg(artboards[i].index)", exporter)
+        self.assertIn("artboards[i].artworkSvg = null", exporter)
+        self.assertNotIn("function readArtworkWithoutLiveText", exporter)
+        self.assertNotIn("doc.groupItems.length", exporter)
         self.assertIn("__CHARTLINGO_CANCELLED__", exporter)
 
     def test_logo_safe_credit_layout_is_exported_and_dynamic(self):
         app = (ROOT / "app.js").read_text()
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         schema = (ROOT / "schemas/package-v2.schema.json").read_text()
-        self.assertIn("function logoBoundsForArtboard", exporter)
-        self.assertIn("logoBounds: logoBoundsForArtboard(i)", exporter)
+        self.assertNotIn("function logoBoundsForArtboard", exporter)
+        self.assertIn("logoBounds: null", exporter)
         self.assertIn('"logoBounds"', schema)
         self.assertIn("function scaledLogoBounds", app)
         self.assertIn("function layoutBottomCredits", app)
@@ -250,7 +246,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("CLV2.wrap(item.english,width,preferred,8)", app)
         self.assertIn("previousBottom+8", app)
 
-    def test_chart_content_line_break_modes_are_scoped_and_exported(self):
+    def test_chart_content_line_break_modes_are_scoped(self):
         core = (ROOT / "core.js").read_text()
         app = (ROOT / "app.js").read_text()
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
@@ -277,7 +273,6 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn('"lineBreakMode"', package_schema)
         self.assertIn('"manualLines"', result_schema)
         self.assertIn("line-break-control", styles)
-        self.assertIn("contentType:o.originalSource.contentType||(isChartContent(o.originalSource)?'chart':null)", app)
 
     def test_chart_content_can_merge_and_regenerate_from_csv(self):
         index = (ROOT / "index.html").read_text()
@@ -317,7 +312,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn('"inheritStyle"', schema)
         self.assertIn("mapping-row.merged", styles)
 
-    def test_infographic_text_and_indicators_export_independently(self):
+    def test_infographic_text_is_atomic_and_vector_artwork_uses_fast_svg_export(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         app = (ROOT / "app.js").read_text()
         package_schema = (ROOT / "schemas/package-v2.schema.json").read_text()
@@ -326,11 +321,8 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("'graphic-value'", exporter)
         self.assertIn("'graphic-percentage'", exporter)
         self.assertIn("graphicElements: []", exporter)
-        self.assertIn("contentType: graphicDirection", exporter)
-        self.assertIn("preserveOriginalColor: true", exporter)
-        self.assertIn("sourceColor: fill", exporter)
-        self.assertIn("Independent vector elements", exporter)
-        self.assertIn("graphicElements:(artboard.graphicElements||[])", app)
+        self.assertNotIn("for (graphicIndex = 0; graphicIndex < doc.pathItems.length", exporter)
+        self.assertIn("Vector artwork remains inside previewSvg", exporter)
         self.assertIn('"graphic-label"', package_schema)
         self.assertIn('"graphic-value"', package_schema)
         self.assertIn('"graphic-percentage"', package_schema)
@@ -353,7 +345,6 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("metricSlot:'label'", app)
         self.assertIn("metricSlot:'value'", app)
         self.assertIn("metricSlot:'change-row'", app)
-        self.assertIn("o.english&&o.layout&&!o.mergedInto", app)
         self.assertIn('"metricGroupId"', package_schema)
         self.assertIn('"slot"', package_schema)
         self.assertIn('"layoutRole"', result_schema)
@@ -414,8 +405,6 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("function resetSelectedSourceStyle", app)
         self.assertIn('transform="rotate(', app)
         self.assertIn("vertical==='middle'", app)
-        self.assertIn("category:o.category", app)
-        self.assertIn("rotation:o.rotation||0", app)
         self.assertIn(".text-inspector", styles)
         self.assertIn('Text-box width (px)<input id="editWidth"', index)
         self.assertIn("Number(item.translationLayout?.width)>0", app)
@@ -543,7 +532,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn('class="export-menu"', top_actions)
         self.assertIn('id="exportSvg"', top_actions)
         self.assertIn('id="exportPng"', top_actions)
-        self.assertIn('id="exportResult"', top_actions)
+        self.assertNotIn('id="exportResult"', top_actions)
         self.assertIn(".export-menu-popover", styles)
         self.assertIn(".export-option", styles)
         self.assertIn("removeAttribute('open')", app)

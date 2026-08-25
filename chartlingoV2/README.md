@@ -15,8 +15,8 @@ For team testing and step-by-step Illustrator setup, see the [ChartLingoV2 Team 
 - A 1200-pixel-wide English canvas whose height is calculated automatically from the source aspect ratio; artwork and typography scale uniformly.
 - Source SVG text is removed structurally before English is generated; V2 no longer paints white masks over Chinese text.
 - The Illustrator exporter hides live text while generating the artwork preview, so source glyph outlines are not duplicated behind English.
-- Packages contain both `previewSvg` (the complete Chinese reference) and `artworkSvg` (the same artwork with live text hidden) so the original and English panels use the correct source.
-- Illustrator exporter 0.6.1 defaults to one selected artboard, shows a lightweight document preflight, reports progress, supports cancellation, and restores temporary text visibility changes safely. Batch modes remain explicit; objects are scanned once, assigned only to intersecting selected artboards, and rendered sequentially into cropped artboard-local SVGs.
+- Packages contain `previewSvg` for the complete Chinese reference. ChartLingo derives the English artwork in the browser by removing live SVG text.
+- Illustrator exporter 0.6.4 exports only the active artboard, skips expensive document-wide path, logo, and outlined-group scans, creates one SVG instead of two, reports progress, and supports cancellation.
 - Merged chart content records a structural `styleRole` and inherits only from a same-level sibling. Same-row siblings take priority, followed by the dominant same-role style in the surrounding chart section; translation length and wrapped-line count do not choose the font size.
 - Chart-content objects support per-object Auto, Single line, and Manual line-break modes. Headline, subtitle, footer, Source, and Credit objects are excluded from this control.
 - Multiple chart-content objects can be selected in the mapping panel and merged into one canonical CSV field. The merged output records `mergedFrom` and `csvField`, inherits the surrounding header typography and column geometry, and remains one logical translation item even when it wraps visually.
@@ -30,8 +30,7 @@ For team testing and step-by-step Illustrator setup, see the [ChartLingoV2 Team 
 - English remains anchored to the source text frame's exact top-left position; fitting uses wrapping and font reduction rather than movement.
 - Bundled Roboto Regular and Bold are used for measurement, preview, PNG and editable SVG export.
 - Direct SVG and PNG export from ChartLingoV2.
-- Optional `.chartlingo-result` export and Illustrator write-back prototype.
-- Original Chinese layers are not intentionally overwritten; write-back creates an `English - ChartLingoV2` layer and requires a new `.ai` save target.
+- Original Chinese layers are not intentionally overwritten.
 
 ## Run
 
@@ -62,7 +61,6 @@ Scripts are in `illustrator/`:
 4. Import the approved CSV and, when available, the matching English reference `.chartlingo` package.
 5. Generate English, review and run checks.
 6. Export directly as SVG or PNG when the result is ready.
-7. For complex cases, export **Send to Illustrator** and run `apply-chartlingo-result.jsx` against the matching original file.
 
 The Illustrator scripts are capability prototypes. They must be validated on Illustrator 2024, 2025 and 2026 on both macOS and Windows before newsroom deployment.
 
@@ -72,13 +70,12 @@ The Illustrator scripts are capability prototypes. They must be validated on Ill
 - Outlined text cannot be extracted and is reported for manual review only when the Illustrator object/layer naming provides evidence.
 - Text on paths, threaded text, clipping masks, mixed styles inside one frame and compound transforms need additional Illustrator capability tests.
 - PNG export depends on browser SVG rendering, using the bundled Roboto files.
-- English SVG export embeds the bundled Roboto files. Illustrator handoff requires Roboto to be installed in Illustrator and reports substitutions when it is unavailable.
+- English SVG export embeds the bundled Roboto files.
 - PDF export and embedded production fonts are not yet implemented in V2.
 - Write-back object IDs are deterministic for a stable document traversal order; persistent Illustrator object tagging still needs a capability spike.
 
 ## Safety
 
 - Keep the original `.ai` file backed up.
-- Apply results only to the matching source document.
 - Always select a new `.ai` filename during write-back.
 - Inspect fonts, overflow, clipping and effects before publication.

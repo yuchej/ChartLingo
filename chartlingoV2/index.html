@@ -19,7 +19,6 @@
         <div class="export-menu-popover" role="menu" aria-label="Export format">
           <button id="exportSvg" class="export-option" role="menuitem" disabled>Export SVG</button>
           <button id="exportPng" class="export-option" role="menuitem" disabled>Export PNG</button>
-          <button id="exportResult" class="export-option" role="menuitem" disabled>Send to Illustrator</button>
         </div>
       </details>
     </div>
@@ -56,7 +55,7 @@
                 <button type="button" data-align-action="top" title="Align top edges" aria-label="Align top edges" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="align-guide" d="M3 4h18"/><path d="M7 7h4v11H7zM14 7h4v7h-4z"/></svg></button><button type="button" data-align-action="vcenter" title="Align vertical centers" aria-label="Align vertical centers" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="align-guide" d="M12 2v20"/><path d="M4 9h6v6H4zM14 6h6v12h-6z"/></svg></button><button type="button" data-align-action="bottom" title="Align bottom edges" aria-label="Align bottom edges" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="align-guide" d="M3 20h18"/><path d="M6 8h5v9H6zM14 4h5v13h-5z"/></svg></button>
               </div>
             </section>
-            <details class="inspector-section" open><summary>Content</summary><div class="inspector-body"><label class="inspector-wide">Text<textarea id="editText" rows="3"></textarea></label></div></details>
+            <details class="inspector-section" open><summary>Content</summary><div class="inspector-body"><label class="inspector-wide">Text<textarea id="editText" rows="3"></textarea></label><button id="removeSelectedText" class="button danger inspector-wide" type="button">Remove text</button></div></details>
             <details class="inspector-section" open><summary>Typography</summary><div class="inspector-body">
               <label>Font family<input id="editFontFamily" type="text"></label><label>Font size<input id="editFontSize" type="number" min="1" step="0.5" placeholder="Mixed"></label>
               <label>Font weight<select id="editFontWeight"><option value="">Mixed</option><option value="400">Regular</option><option value="500">Medium</option><option value="600">Semibold</option><option value="700">Bold</option><option value="800">Extra bold</option></select></label><label>Text color<input id="editColor" type="color"></label>
@@ -91,6 +90,6 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
     <script src="core.js?v=20260821-01"></script>
-    <script src="app.js?v=20260821-16"></script>
+    <script src="app.js?v=20260824-02"></script>
 </body>
 </html>
