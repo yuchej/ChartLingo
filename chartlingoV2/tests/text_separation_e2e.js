@@ -1,0 +1,26 @@
+const { chromium } = require(process.env.CODEX_NODE_MODULES + "/playwright");
+const path = require("path");
+const baseUrl = process.argv[2] || "http://127.0.0.1:4175/chartlingoV2/";
+(async () => {
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const errors = [];
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await page.locator("#packageInput").setInputFiles(path.resolve(__dirname, "../fixtures/multi-field.chartlingo"));
+  await page.locator("#csvInput").setInputFiles(path.resolve(__dirname, "../fixtures/multi-field.csv"));
+  await page.locator("#generate").click();
+  const warningBefore = await page.locator("#dataMismatchWarning").isVisible();
+  await page.locator("#dataMismatchWarning").click();
+  const splitRows = await page.locator(".mismatch-split-row").count();
+  await page.locator("#confirmSeparation").click();
+  const visibleAfter = await page.locator("#outputCanvas .english-object").count();
+  const textsAfter = await page.locator("#outputCanvas .english-object text").allTextContents();
+  const warningAfter = await page.locator("#dataMismatchWarning").isVisible();
+  await page.locator("#undoEdit").click();
+  const visibleAfterUndo = await page.locator("#outputCanvas .english-object").count();
+  const warningAfterUndo = await page.locator("#dataMismatchWarning").isVisible();
+  console.log(JSON.stringify({ warningBefore, splitRows, visibleAfter, textsAfter, warningAfter, visibleAfterUndo, warningAfterUndo, errors }, null, 2));
+  if (!warningBefore || splitRows !== 2 || visibleAfter !== 2 || warningAfter || visibleAfterUndo !== 1 || !warningAfterUndo || errors.length) process.exitCode = 1;
+  await browser.close();
+})().catch(error => { console.error(error); process.exit(1); });

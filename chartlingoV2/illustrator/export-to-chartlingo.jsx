@@ -156,18 +156,23 @@
     return result;
   }
   function tableRows(frame) {
-    var raw = String(frame.contents || ''), rows = raw.split(/[\r\n]+/), result = [], numbered = [], plain = [], i, cells, j, useful, match;
+    var raw = String(frame.contents || ''), rows = raw.split(/[\r\n]+/), result = [], numbered = [], plain = [], i, cells, j, useful, match, numericScale = true;
     if (raw.indexOf('\t') < 0) {
       for (i = 0; i < rows.length; i++) {
         if (!clean(rows[i])) continue;
         match = rows[i].match(/^\s*(\d+)[\.\)\u3001]?\s*(\D.+?)\s*$/);
         if (match) numbered.push([clean(match[1]), clean(match[2])]);
         plain.push([clean(rows[i])]);
+        if (!/^[+\-−]?(?:\d+(?:[.,]\d+)?|[.,]\d+)%?$/.test(clean(rows[i]))) numericScale = false;
       }
       if (numbered.length === plain.length && numbered.length >= 2) {
         numbered.numberedList = true;
         return numbered;
       }
+      /* Multi-line chart scales (1.2, 1.0, 0.8...) are one Illustrator
+         text frame, not a list. Keep the frame intact so decimals and their
+         shared alignment/leading cannot be reconstructed incorrectly. */
+      if (plain.length >= 3 && numericScale) return null;
       if (plain.length >= 3) {
         plain.plainList = true;
         return plain;
@@ -380,7 +385,7 @@
   for (selectionIndex = 0; selectionIndex < selectedIndices.length; selectionIndex++) {
     i = selectedIndices[selectionIndex];
     var rect = doc.artboards[i].artboardRect, width = rect[2] - rect[0], height = rect[1] - rect[3];
-    var artboardRecord = {id: 'artboard-' + (i + 1), name: doc.artboards[i].name || ('Artboard ' + (i + 1)), index: i, order: selectionIndex, position: {x: rect[0], y: rect[1]}, bounds: {x: 0, y: 0, width: width, height: height}, orientation: width >= height ? 'landscape' : 'portrait', background: {transparent: true}, objectCount: 0, layerNames: [], logoBounds: logoBoundsForArtboard(i), previewSvg: null, artworkSvg: null, textFrames: [], graphicElements: []};
+    var artboardRecord = {id: 'artboard-' + (i + 1), name: doc.artboards[i].name || ('Artboard ' + (i + 1)), index: i, order: selectionIndex, position: {x: rect[0], y: rect[1]}, bounds: {x: 0, y: 0, width: width, height: height}, orientation: width >= height ? 'landscape' : 'portrait', background: {transparent: true}, objectCount: 0, layerNames: [], logoBounds: logoBoundsForArtboard(i), previewSvg: null, artworkSvg: null, textFrames: [], graphicElements: [], imageObjects: []};
     artboards.push(artboardRecord); artboardsByIndex[i] = artboardRecord;
   }
   var selectedArtboards = artboards.slice(0);
@@ -468,6 +473,28 @@
     graphicRecord = {id: 'cl-ge-' + (graphicBoard + 1) + '-' + (++graphicCount), name: graphicName, contentType: graphicDirection(graphicName, graphicBox, graphicPoints) ? 'indicator' : 'vector', direction: graphicDirection(graphicName, graphicBox, graphicPoints), bounds: graphicBox, points: graphicPoints, style: graphicStyle(graphicItem), layerName: String(graphicItem.layer ? graphicItem.layer.name : ''), zOrder: graphicIndex, sourceGroupKey: sourceGroupKey(graphicItem, graphicRect), illustrator: {typename: graphicItem.typename, pathItemIndex: graphicIndex, editable: !graphicItem.locked}};
     artboards[graphicBoard].graphicElements.push(graphicRecord);
   }
+  function imageRotation(item) {
+    try { return Math.atan2(item.matrix.mValueB, item.matrix.mValueA) * 180 / Math.PI; } catch (_) { return 0; }
+  }
+  function scanImageCollection(collection, imageType) {
+    var imageIndex, imageItem, imageBounds, imageBoard, imageRect, imageBox, imagePosition, originalWidth, originalHeight, originalX, originalY, rotation, record;
+    for (imageIndex = 0; imageIndex < collection.length; imageIndex++) {
+      progress('Scanning images', imageIndex, collection.length, selectedIndices.length === 1 ? doc.artboards[selectedIndices[0]].name : 'selected artboards');
+      imageItem = collection[imageIndex];
+      try { if (imageItem.hidden) continue; imageBounds = imageItem.visibleBounds; } catch (_) { continue; }
+      imageBoard = artboardFor(imageBounds); if (imageBoard < 0 || !artboardsByIndex[imageBoard]) continue;
+      imageRect = doc.artboards[imageBoard].artboardRect; imageBox = localBounds(imageBounds, imageRect);
+      try { imagePosition = imageItem.position; } catch (_) { imagePosition = [imageBounds[0], imageBounds[1]]; }
+      try { originalWidth = Math.abs(Number(imageItem.width)); } catch (_) { originalWidth = imageBox.width; }
+      try { originalHeight = Math.abs(Number(imageItem.height)); } catch (_) { originalHeight = imageBox.height; }
+      originalX = Number(imagePosition[0]) - imageRect[0]; originalY = imageRect[1] - Number(imagePosition[1]); rotation = imageRotation(imageItem);
+      record = {id: 'cl-image-' + (imageBoard + 1) + '-' + (artboardsByIndex[imageBoard].imageObjects.length + 1), type: 'image', name: String(imageItem.name || ('Image ' + (imageIndex + 1))), original: {x: originalX, y: originalY, width: originalWidth, height: originalHeight, rotation: rotation}, bounds: imageBox, aspectRatio: originalHeight ? originalWidth / originalHeight : null, lockedGeometry: true, imageType: imageType, layerName: String(imageItem.layer ? imageItem.layer.name : ''), illustrator: {typename: imageItem.typename, itemIndex: imageIndex, locked: imageItem.locked, editable: !imageItem.locked}};
+      artboardsByIndex[imageBoard].imageObjects.push(record); artboardsByIndex[imageBoard].objectCount++;
+      try { addLayer(artboardsByIndex[imageBoard], imageItem.layer.name); } catch (_) {}
+    }
+  }
+  try { scanImageCollection(doc.placedItems, 'placed'); } catch (_) {}
+  try { scanImageCollection(doc.rasterItems, 'raster'); } catch (_) {}
   artboards = selectedArtboards;
   for (i = 0; i < artboards.length; i++) {
     progress('Structuring artboard', i, artboards.length, artboards[i].name);
@@ -534,7 +561,7 @@
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.6.1'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.separate ? 'separate' : exportChoice.mode === 0 ? 'selected' : exportChoice.mode === 2 ? 'range' : 'all', artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.6.2'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.separate ? 'separate' : exportChoice.mode === 0 ? 'selected' : exportChoice.mode === 2 ? 'range' : 'all', artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
   function safeName(value) { return clean(value).replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-'); }
   function writePackage(file, data) { file.encoding = 'UTF-8'; file.open('w'); file.write(jsonStringify(data, '  ', 0)); file.close(); }
@@ -546,7 +573,7 @@
     }
   } else { writePackage(destination, packageFor(artboards, '')); outputCount = 1; outputPath = destination.fsName; }
   try { progressWindow.close(); } catch (_) {}
-  alert('ChartLingoV2 export complete:\n' + outputPath + '\n\nExporter: 0.6.1\nMode: ' + (exportChoice.separate ? 'separate packages' : 'one package') + '\nFiles: ' + outputCount + '\nArtboards: ' + artboards.length + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nTable/list/axis/credit items split: ' + splitCells);
+  alert('ChartLingoV2 export complete:\n' + outputPath + '\n\nExporter: 0.6.2\nMode: ' + (exportChoice.separate ? 'separate packages' : 'one package') + '\nFiles: ' + outputCount + '\nArtboards: ' + artboards.length + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nTable/list/axis/credit items split: ' + splitCells);
   } catch (exportError) {
     try { doc.artboards.setActiveArtboardIndex(initialActiveArtboard); } catch (_) {}
     try { progressWindow.close(); } catch (_) {}
