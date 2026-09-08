@@ -23,4 +23,29 @@ if (matches[2].english !== "First Half" || matches[2].method !== "exact") {
   throw new Error("Automatic row ID incorrectly overrode the exact source-text match");
 }
 
+const creditFrames = global.__CLV2.atomicTextFrames([{
+  id: "cl-tf-1-18",
+  name: "Text 18",
+  sourceText: "资料来源／《纽约时报》、全球能源监测机构等 地图／张进培",
+  visibleLines: ["", "资料来源／《纽约时报》、全球能源监测机构等", "地图／张进培"],
+  bounds: { x: 20, y: 700, width: 500, height: 40 },
+}]);
+if (creditFrames.length !== 2 || creditFrames[0].fieldType !== "source" || creditFrames[1].fieldType !== "credit") {
+  throw new Error("Combined source and map-credit lines were not separated into atomic fields");
+}
+const creditPairs = global.__CLV2.parseCsv("CH,EN\n资料来源 / 《纽约时报》、全球能源监测机构等,Source / The New York Times and Global Energy Monitor\n地图 / 张进培,LHZB Map / Zhang Jinpei\n");
+const creditMatches = global.__CLV2.match(creditFrames, creditPairs);
+if (creditMatches[0].pairId !== creditPairs[0].id || creditMatches[1].pairId !== creditPairs[1].id) {
+  throw new Error("Full-width and ASCII credit separators did not normalize to the same CSV fields");
+}
+const mapCreditFrames = global.__CLV2.atomicTextFrames([{
+  id: "map-credit",
+  sourceText: "资料来源：市区重建局 早报地图：张进培",
+  visibleLines: ["资料来源：市区重建局", "早报地图：张进培"],
+  bounds: { x: 20, y: 700, width: 500, height: 40 },
+}]);
+if (mapCreditFrames.length !== 2 || mapCreditFrames[1].fieldType !== "credit" || mapCreditFrames[1].sourceText !== "早报地图：张进培") {
+  throw new Error("Zaobao map credit was not separated as a credit field");
+}
+
 process.stdout.write("CSV period matching: passed\n");

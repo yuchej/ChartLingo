@@ -147,10 +147,11 @@
     return 'period';
   }
   function creditLines(frame) {
-    var lines = visibleLines(frame), result = [], i;
+    var lines = visibleLines(frame), result = [], normalized, i;
     if (lines.length < 2) return null;
     for (i = 0; i < lines.length; i++) {
-      if (!/^(?:早报图表|联合早报图表|图表|圖表|资料来源|資料來源|数据来源|數據來源|来源|來源)\s*[：:]/.test(lines[i])) return null;
+      normalized = clean(lines[i]).replace(/\uFF0F/g, '/').replace(/\uFF1A/g, ':');
+      if (!/^(?:早报图表|联合早报图表|早报地图|早報地圖|图表|圖表|地图|地圖|资料来源|資料來源|数据来源|數據來源|来源|來源)\s*[:\/]/.test(normalized)) return null;
       result.push(lines[i]);
     }
     return result;
@@ -171,7 +172,9 @@
       }
       /* Multi-line chart scales (1.2, 1.0, 0.8...) are one Illustrator
          text frame, not a list. Keep the frame intact so decimals and their
-         shared alignment/leading cannot be reconstructed incorrectly. */
+         shared alignment/leading cannot be reconstructed incorrectly. The
+         importer also repairs Illustrator line collections that expose a
+         decimal as adjacent fragments such as "1" and ".2". */
       if (plain.length >= 3 && numericScale) return null;
       if (plain.length >= 3) {
         plain.plainList = true;
@@ -561,7 +564,7 @@
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.6.2'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.separate ? 'separate' : exportChoice.mode === 0 ? 'selected' : exportChoice.mode === 2 ? 'range' : 'all', artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.6.4'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.separate ? 'separate' : exportChoice.mode === 0 ? 'selected' : exportChoice.mode === 2 ? 'range' : 'all', artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
   function safeName(value) { return clean(value).replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-'); }
   function writePackage(file, data) { file.encoding = 'UTF-8'; file.open('w'); file.write(jsonStringify(data, '  ', 0)); file.close(); }
@@ -573,7 +576,7 @@
     }
   } else { writePackage(destination, packageFor(artboards, '')); outputCount = 1; outputPath = destination.fsName; }
   try { progressWindow.close(); } catch (_) {}
-  alert('ChartLingoV2 export complete:\n' + outputPath + '\n\nExporter: 0.6.2\nMode: ' + (exportChoice.separate ? 'separate packages' : 'one package') + '\nFiles: ' + outputCount + '\nArtboards: ' + artboards.length + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nTable/list/axis/credit items split: ' + splitCells);
+  alert('ChartLingoV2 export complete:\n' + outputPath + '\n\nExporter: 0.6.4\nMode: ' + (exportChoice.separate ? 'separate packages' : 'one package') + '\nFiles: ' + outputCount + '\nArtboards: ' + artboards.length + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nTable/list/axis/credit items split: ' + splitCells);
   } catch (exportError) {
     try { doc.artboards.setActiveArtboardIndex(initialActiveArtboard); } catch (_) {}
     try { progressWindow.close(); } catch (_) {}
