@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ChartLingoV2</title>
   <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="styles.css?v=20260909-05">
+    <link rel="stylesheet" href="styles.css?v=20260910-08">
 </head>
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-mark">CL</span><span>ChartLingoV2</span></div>
     <div class="top-actions">
       <label class="button import-button">Import Illustrator Package<input id="packageInput" type="file" accept=".chartlingo,.json,application/json"></label>
-      <label class="button import-button">Import CH/EN CSV<input id="csvInput" type="file" accept=".csv,text/csv"></label>
+      <button id="importDatawrapper" class="button import-button" type="button" hidden>Import Datawrapper Link</button>
+      <label class="button import-button">Import CH/EN CSV or TXT<input id="csvInput" type="file" accept=".csv,.txt,text/csv,text/plain"></label>
       <button id="generate" class="button primary" disabled>Generate English</button>
       <span class="toolbar-divider" aria-hidden="true"></span>
       <details class="export-menu">
@@ -108,6 +109,17 @@
   </main>
 
   <div id="toast" role="status" aria-live="polite"></div>
+  <section id="datawrapperPanel" class="mismatch-modal" role="dialog" aria-modal="true" aria-labelledby="datawrapperTitle" hidden>
+    <div class="mismatch-card datawrapper-card">
+      <div class="mismatch-header"><div><span class="eyebrow">Public chart import</span><h2 id="datawrapperTitle">Import Datawrapper link</h2></div><button id="closeDatawrapper" class="icon-button" type="button" aria-label="Close">×</button></div>
+      <div class="datawrapper-content">
+        <label for="datawrapperUrl">Published Datawrapper URL</label>
+        <input id="datawrapperUrl" type="url" inputmode="url" placeholder="https://datawrapper.dwcdn.net/lqkD0/3/">
+        <p>Use a public <code>datawrapper.dwcdn.net</code> chart link. No API token is required.</p>
+      </div>
+      <div class="mismatch-actions"><button id="confirmDatawrapper" class="button primary" type="button">Import link</button><button id="cancelDatawrapper" class="button" type="button">Cancel</button></div>
+    </div>
+  </section>
   <section id="dataMismatchPanel" class="mismatch-modal" role="dialog" aria-modal="true" aria-labelledby="mismatchTitle" hidden>
     <div class="mismatch-card">
       <div class="mismatch-header"><div><span class="eyebrow">CSV validation</span><h2 id="mismatchTitle">Data mismatch detected</h2></div><div id="mismatchNavigation" class="mismatch-navigation" aria-label="Mismatch navigation"><button id="previousMismatch" class="button" type="button">← Previous</button><strong id="mismatchPosition">1 of 1</strong><button id="nextMismatch" class="button" type="button">Next →</button></div><button id="closeMismatch" class="icon-button" type="button" aria-label="Close mismatch panel">×</button></div>
@@ -120,7 +132,7 @@
       <div class="mismatch-actions"><button id="confirmSeparation" class="button primary" type="button">Apply separation and match all fields</button><button id="editMismatchMapping" class="button" type="button" hidden>Adjust split manually</button><button id="keepCombined" class="button" type="button" hidden>Keep as one text box</button><button id="ignoreMismatch" class="button" type="button">Ignore warning</button><button id="cancelMismatch" class="button" type="button">Cancel</button></div>
     </div>
   </section>
-    <script src="core.js?v=20260908-06"></script>
-    <script src="app.js?v=20260909-07"></script>
+    <script src="core.js?v=20260910-02"></script>
+    <script src="app.js?v=20260910-10"></script>
 </body>
 </html>

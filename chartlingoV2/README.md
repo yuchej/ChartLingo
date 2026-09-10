@@ -9,7 +9,7 @@ For team testing and step-by-step Illustrator setup, see the [ChartLingoV2 Team 
 - Versioned `.chartlingo` structured interchange format.
 - Illustrator extraction prototype for live text, paragraphs, visible lines, artboards, geometry and style metadata.
 - Multi-artboard ChartLingo workspace.
-- Translation CSV import with ID, exact, normalized and fuzzy matching.
+- Translation CSV or TXT import with ID, exact, normalized and fuzzy matching.
 - One translation per Illustrator text frame, even when the frame renders on multiple lines.
 - Deterministic English wrapping, font-size floor and boundary/overlap validation.
 - A 1200-pixel-wide English canvas whose height is calculated automatically from the source aspect ratio; artwork and typography scale uniformly.
@@ -42,7 +42,7 @@ ruby -run -e httpd . -p 4173 -b 127.0.0.1
 
 Open `http://127.0.0.1:4173/chartlingoV2/` and choose **Load sample** for the built-in demonstration.
 
-## Translation CSV
+## Translation CSV or TXT
 
 `CH` and `EN` are required. `ID` is recommended because it matches the Illustrator text-frame ID exactly.
 
@@ -51,6 +51,8 @@ ID,CH,EN
 headline-01,"航程缩短3小时，新加坡经济可获什么？","What can Singapore gain from a three-hour reduction in flight time?"
 ```
 
+TXT files may use one Chinese/English pair per line separated by a Tab (recommended), `|`, or `=>`. Labelled `CH:`/`EN:` pairs and alternating Chinese and English lines are also supported. Comma-separated TXT files require a `CH,EN` header.
+
 ## Illustrator prototype
 
 Scripts are in `illustrator/`:
@@ -58,7 +60,7 @@ Scripts are in `illustrator/`:
 1. Open a production file in Illustrator.
 2. Run `export-to-chartlingo.jsx` through **File → Scripts → Other Script…**.
 3. Import the resulting `.chartlingo` file into ChartLingoV2.
-4. Import the approved CSV and, when available, the matching English reference `.chartlingo` package.
+4. Import the approved CSV or TXT file and, when available, the matching English reference `.chartlingo` package.
 5. Generate English, review and run checks.
 6. Export directly as SVG or PNG when the result is ready.
 
