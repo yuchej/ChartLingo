@@ -94,7 +94,7 @@
     return 'null';
   }
 
-  function clean(value) { return String(value || '').replace(/[\r\n]+/g, ' ').replace(/^\s+|\s+$/g, ''); }
+  function clean(value) { return String(value || '').replace(/[\u0000-\u001F\u007F]+/g, ' ').replace(/^\s+|\s+$/g, ''); }
   function frameId(artboardIndex, frameIndex) { return 'cl-tf-' + (artboardIndex + 1) + '-' + (frameIndex + 1); }
   function artboardFor(bounds) {
     var cx = (bounds[0] + bounds[2]) / 2, cy = (bounds[1] + bounds[3]) / 2, best = -1, bestArea = 0, i, r, left, right, top, bottom, area;
@@ -115,6 +115,20 @@
     var values = [];
     try { for (var i = 0; i < frame.lines.length; i++) values.push(clean(frame.lines[i].contents)); } catch (_) {}
     return values.length ? values : [clean(frame.contents)];
+  }
+  function hasUniformLineFontSize(frame) {
+    var first = null, count = 0, i, value;
+    try {
+      for (i = 0; i < frame.lines.length; i++) {
+        if (!clean(frame.lines[i].contents)) continue;
+        value = Number(frame.lines[i].characterAttributes.size);
+        if (!value) return false;
+        if (first === null) first = value;
+        else if (Math.abs(first - value) > 0.01) return false;
+        count++;
+      }
+    } catch (_) { return false; }
+    return count > 0;
   }
   function lineWords(line) {
     var values = [], i, value;
@@ -157,26 +171,35 @@
     return result;
   }
   function tableRows(frame) {
-    var raw = String(frame.contents || ''), rows = raw.split(/[\r\n]+/), result = [], numbered = [], plain = [], i, cells, j, useful, match, numericScale = true;
+    var raw = String(frame.contents || ''), rows = raw.split(/[\r\n]+/), result = [], numbered = [], plain = [], i, cells, j, useful, match, numericScale = true, splitColumns = false;
     if (raw.indexOf('\t') < 0) {
       for (i = 0; i < rows.length; i++) {
         if (!clean(rows[i])) continue;
         match = rows[i].match(/^\s*(\d+)[\.\)\u3001]?\s*(\D.+?)\s*$/);
         if (match) numbered.push([clean(match[1]), clean(match[2])]);
         plain.push([clean(rows[i])]);
+        cells = rows[i].split(/ {2,}|\u3000+|\s+(?=[^\s]{1,12}[\uFF1A:])/); useful = false;
+        for (j = 0; j < cells.length; j++) { cells[j] = clean(cells[j]); if (cells[j]) useful = true; }
+        if (cells.length > 1) splitColumns = true;
+        if (useful) result.push(cells);
         if (!/^[+\-−]?(?:\d+(?:[.,]\d+)?|[.,]\d+)%?$/.test(clean(rows[i]))) numericScale = false;
       }
       if (numbered.length === plain.length && numbered.length >= 2) {
         numbered.numberedList = true;
         return numbered;
       }
+      /* Illustrator often stores several independent labels in one line and
+         separates them with repeated or full-width spaces rather than tabs.
+         Export those labels as independent virtual cells so each can match a
+         CH/EN row without modifying the Illustrator document. */
+      if (splitColumns) { result.spacedColumns = true; return result; }
       /* Multi-line chart scales (1.2, 1.0, 0.8...) are one Illustrator
          text frame, not a list. Keep the frame intact so decimals and their
          shared alignment/leading cannot be reconstructed incorrectly. The
          importer also repairs Illustrator line collections that expose a
          decimal as adjacent fragments such as "1" and ".2". */
       if (plain.length >= 3 && numericScale) return null;
-      if (plain.length >= 3) {
+      if (plain.length >= 2) {
         plain.plainList = true;
         return plain;
       }
@@ -207,7 +230,12 @@
        midpoint boundaries shifts every cell after the first one to the left. */
     for (i = 0; i < count; i++) {
       next = i + 1 < anchors.length ? anchors[i + 1] : width;
-      columns.push({x: anchors[i], width: Math.max(1, next - anchors[i]), alignment: aligns[i]});
+      /* Point-text visible bounds end at the final glyph, so the remainder
+         after the last tab anchor is not the final column width. Reuse at
+         least the preceding tab span to prevent the last column from being
+         squeezed during English layout. */
+      step = i === count - 1 && i > 0 ? anchors[i] - anchors[i - 1] : 0;
+      columns.push({x: anchors[i], width: Math.max(1, next - anchors[i], step), alignment: aligns[i]});
     }
     return columns;
   }
@@ -394,8 +422,23 @@
   var selectedArtboards = artboards.slice(0);
   artboards = [];
   for (selectionIndex = 0; selectionIndex < selectedArtboards.length; selectionIndex++) artboards[selectedArtboards[selectionIndex].index] = selectedArtboards[selectionIndex];
-  var counters = [], exportedBlocks = 0, splitCells = 0;
+  var counters = [], exportedBlocks = 0, splitCells = 0, topHeaderSizes = [], scanIndex, scanFrame, scanBounds, scanBoard, scanBox, scanSize;
   for (i = 0; i < doc.artboards.length; i++) counters[i] = 0;
+  /* Find the largest text frame in the top quarter of each artboard before
+     splitting anything. A multi-line frame at that size is the headline and
+     must remain one object when all of its lines use the same font size. */
+  for (scanIndex = 0; scanIndex < doc.textFrames.length; scanIndex++) {
+    scanFrame = doc.textFrames[scanIndex];
+    try { if (scanFrame.hidden || !scanFrame.editable || !clean(scanFrame.contents)) continue; } catch (_) { continue; }
+    try { scanBounds = scanFrame.visibleBounds; } catch (_) { continue; }
+    scanBoard = artboardFor(scanBounds);
+    if (scanBoard < 0 || !artboardsByIndex[scanBoard]) continue;
+    scanBox = localBounds(scanBounds, doc.artboards[scanBoard].artboardRect);
+    if (scanBox.y > artboardsByIndex[scanBoard].bounds.height * 0.25) continue;
+    scanSize = 0;
+    try { scanSize = Number(scanFrame.textRange.characterAttributes.size) || 0; } catch (_) {}
+    if (scanSize > (topHeaderSizes[scanBoard] || 0)) topHeaderSizes[scanBoard] = scanSize;
+  }
   var outlinedCount = 0;
   for (i = 0; i < doc.textFrames.length; i++) {
     progress('Scanning text', i, doc.textFrames.length, selectedIndices.length === 1 ? doc.artboards[selectedIndices[0]].name : 'selected artboards');
@@ -413,7 +456,8 @@
     try { fontStyleName = frame.textRange.characterAttributes.textFont.style || ''; if (/bold|black|heavy|semibold|demi/i.test(fontStyleName)) fontWeight = 700; } catch (_) {}
     try { fill = colorHex(frame.textRange.characterAttributes.fillColor); } catch (_) {}
     try { justify = alignment(frame.paragraphs[0].paragraphAttributes.justification); } catch (_) {}
-    var axisLabels = pairedAxisLabels(frame), credits = creditLines(frame), rows = tableRows(frame), rowIndex, columnIndex, maxColumns = 0, columns, rowHeight, cell, cellBox, groupId, fieldType, itemId;
+    var axisLabels = pairedAxisLabels(frame), credits = creditLines(frame), rows = tableRows(frame), isUniformHeader = box.y <= boardRecord.bounds.height * 0.25 && size >= (topHeaderSizes[boardIndex] || size) - 0.01 && hasUniformLineFontSize(frame), rowIndex, columnIndex, maxColumns = 0, columns, rowHeight, cell, cellBox, groupId, fieldType, itemId;
+    if (isUniformHeader) { axisLabels = null; credits = null; rows = null; }
     if (axisLabels) {
       rowHeight = box.height / 2;
       for (columnIndex = 0; columnIndex < axisLabels.length; columnIndex++) {
@@ -564,7 +608,7 @@
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.6.4'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.separate ? 'separate' : exportChoice.mode === 0 ? 'selected' : exportChoice.mode === 2 ? 'range' : 'all', artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.6.6'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.separate ? 'separate' : exportChoice.mode === 0 ? 'selected' : exportChoice.mode === 2 ? 'range' : 'all', artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
   function safeName(value) { return clean(value).replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-'); }
   function writePackage(file, data) { file.encoding = 'UTF-8'; file.open('w'); file.write(jsonStringify(data, '  ', 0)); file.close(); }
@@ -576,7 +620,7 @@
     }
   } else { writePackage(destination, packageFor(artboards, '')); outputCount = 1; outputPath = destination.fsName; }
   try { progressWindow.close(); } catch (_) {}
-  alert('ChartLingoV2 export complete:\n' + outputPath + '\n\nExporter: 0.6.4\nMode: ' + (exportChoice.separate ? 'separate packages' : 'one package') + '\nFiles: ' + outputCount + '\nArtboards: ' + artboards.length + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nTable/list/axis/credit items split: ' + splitCells);
+  alert('ChartLingoV2 export complete:\n' + outputPath + '\n\nExporter: 0.6.6\nMode: ' + (exportChoice.separate ? 'separate packages' : 'one package') + '\nFiles: ' + outputCount + '\nArtboards: ' + artboards.length + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
   } catch (exportError) {
     try { doc.artboards.setActiveArtboardIndex(initialActiveArtboard); } catch (_) {}
     try { progressWindow.close(); } catch (_) {}

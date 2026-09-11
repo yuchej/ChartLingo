@@ -49,6 +49,8 @@ C:\Program Files\Adobe\Adobe Illustrator 2026\Presets\en_US\Scripts\
 4. Export the selected artboard.
 5. Save the `.chartlingo` package.
 
+Exporter 0.6.6 separates explicit line breaks and items divided by Tabs, repeated spaces, or full-width spaces into independent ChartLingo text objects. This improves CSV/TXT matching without changing the Illustrator artwork. A multi-line header remains one text object when all its lines use the same font size. Table columns retain their Illustrator Tab anchors and a usable final-column width. Numeric chart scales also remain protected so decimal values are not broken apart.
+
 ## 3. Create the CSV or TXT translation file
 
 1. Open and add the [Translation Gem](https://gemini.google.com/gem/18JlfyILMc9Ts_8a9-Y_C16c-3zXiQQs0?usp=sharing) to Gemini.
@@ -100,6 +102,7 @@ Rules:
 - Drag text to move it.
 - Shift-click to select and move several items together.
 - Use **Show Chinese reference**, Undo, and Redo when needed.
+- In **Data mismatch detected**, related graphic and CSV items appear as one issue group. Choose **Change text boxes to match CSV** to adopt the CSV structure, or **Keep ChartLingo format** to retain the imported text-box structure.
 
 Check:
 

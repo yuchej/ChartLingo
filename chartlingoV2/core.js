@@ -1,7 +1,7 @@
 const CLV2={VERSION:'2.0.0-alpha.1'};
 CLV2.escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 CLV2.id=value=>{let h=2166136261;for(const c of String(value)){h^=c.codePointAt(0);h=Math.imul(h,16777619)}return `cl-${(h>>>0).toString(36)}`};
-CLV2.normalize=value=>String(value??'').normalize('NFKC').replace(/^\uFEFF/,'').trim().replace(/\s+/g,' ').replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/，/g,',').replace(/：/g,':').replace(/；/g,';').replace(/！/g,'!').replace(/？/g,'?');
+CLV2.normalize=value=>String(value??'').normalize('NFKC').replace(/^\uFEFF/,'').replace(/[\u0000-\u001F\u007F]+/g,' ').trim().replace(/\s+/g,' ').replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/，/g,',').replace(/：/g,':').replace(/；/g,';').replace(/！/g,'!').replace(/？/g,'?');
 CLV2.matchKey=value=>CLV2.normalize(value).replace(/\s+/g,'');
 CLV2.bigrams=value=>{const s=[...CLV2.normalize(value).replace(/\s/g,'')];return new Set(s.length<2?s:s.slice(0,-1).map((c,i)=>c+s[i+1]))};
 CLV2.similarity=(a,b)=>{const x=CLV2.bigrams(a),y=CLV2.bigrams(b);if(!x.size&&!y.size)return 1;let n=0;for(const token of x)if(y.has(token))n++;return 2*n/(x.size+y.size)};
