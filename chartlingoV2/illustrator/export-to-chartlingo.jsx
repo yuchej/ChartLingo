@@ -45,9 +45,12 @@
   }
   var exportChoice = chooseArtboards();
   if (!exportChoice) return;
-  var destination = exportChoice.separate ? Folder.selectDialog('Choose a folder for separate ChartLingo packages') : File.saveDialog('Export ChartLingoV2 package', 'ChartLingo package:*.chartlingo');
-  if (!destination) return;
-  if (!exportChoice.separate && !/\.chartlingo$/i.test(destination.name)) destination = new File(destination.fsName + '.chartlingo');
+  var destinationFolder = Folder.selectDialog(exportChoice.separate ? 'Choose any writable folder for separate ChartLingo packages' : 'Choose any writable folder for the ChartLingo package');
+  if (!destinationFolder) return;
+  var selectedDestinationFolder = destinationFolder;
+  var destination = null;
+  var exportDiagnostics = {destinationFolder: '', resolvedDestinationFolder: '', destinationExists: false, destinationReadable: false, destinationWritable: false, writeTestPassed: false, expectedFiles: [], actualFiles: [], verifiedFiles: [], missingFiles: [], fileSizes: {}, fileErrors: [], exportMode: exportChoice.separate ? 'separate packages' : 'one package', artboardsRequested: exportChoice.indices.length, artboardsCompleted: 0, filesWritten: 0, filesVerified: 0, exportSucceeded: false};
+  try { $.global.__chartLingoExportDiagnostics = exportDiagnostics; } catch (_) {}
   var selectedLookup = {}, selectedIndices = exportChoice.indices, selectionIndex;
   for (selectionIndex = 0; selectionIndex < selectedIndices.length; selectionIndex++) selectedLookup[selectedIndices[selectionIndex]] = true;
   var cancelled = false, progressWindow = new Window('palette', 'ChartLingoV2 Export'), progressText, progressBar, cancelButton;
@@ -94,7 +97,93 @@
     return 'null';
   }
 
+  function filesystemError(type, operation, message, file, underlying) {
+    var error = new Error(message);
+    error.chartLingoType = type;
+    error.chartLingoOperation = operation;
+    error.chartLingoFile = file ? displayPath(file) : '';
+    error.chartLingoUnderlying = String(underlying || 'Unknown filesystem error');
+    return error;
+  }
+  function displayPath(entry) {
+    if (!entry) return '';
+    try { if (entry.fsName) return String(entry.fsName); } catch (_) {}
+    try { if (entry.fullName) return File.decode(String(entry.fullName)); } catch (_) {}
+    return String(entry);
+  }
+  function normalizePath(value) {
+    var path = String(value || '').replace(/\\/g, '/').replace(/\/+$/, '');
+    return $.os && /windows/i.test($.os) ? path.toLowerCase() : path;
+  }
+  function resolveDestinationFolder(folder) {
+    var resolved = folder;
+    if (!folder) throw filesystemError('destination_folder_missing', 'select destination folder', 'No destination folder was selected.', null, 'Folder.selectDialog returned no folder.');
+    try {
+      if (folder.alias) {
+        resolved = folder.resolve();
+        if (!resolved) throw new Error('The selected alias could not be resolved.');
+      }
+    } catch (aliasError) {
+      throw filesystemError('invalid_destination_path', 'resolve destination folder', 'The selected destination folder is an unresolved alias.', folder, aliasError.message || aliasError);
+    }
+    if (!(resolved instanceof Folder)) resolved = new Folder(resolved);
+    if (!resolved.exists) throw filesystemError('destination_folder_missing', 'validate destination folder', 'The selected destination folder does not exist.', resolved, resolved.error);
+    return resolved;
+  }
+  function safeFileName(value, fallback) {
+    var name = clean(value).replace(/[\\\/:*?"<>|]+/g, '-').replace(/[.\s]+$/g, '').replace(/^\s+|\s+$/g, '');
+    return name || fallback || 'chartlingo-export';
+  }
+  function fileInFolder(folder, filename) {
+    var base = String(folder.absoluteURI || folder.fullName || '');
+    if (!base) throw filesystemError('invalid_destination_path', 'build output path', 'Illustrator could not resolve the selected destination path.', folder, folder.error);
+    if (base.charAt(base.length - 1) !== '/') base += '/';
+    return new File(base + encodeURIComponent(filename));
+  }
+  function uniqueFile(folder, filename) {
+    var dot = filename.toLowerCase().lastIndexOf('.chartlingo'), stem = dot >= 0 ? filename.substring(0, dot) : filename, extension = dot >= 0 ? filename.substring(dot) : '.chartlingo';
+    var candidate = fileInFolder(folder, stem + extension), number = 2;
+    while (candidate.exists) { candidate = fileInFolder(folder, stem + '-' + number + extension); number++; }
+    return candidate;
+  }
+  function testDestinationFolder(folder) {
+    var testFile = null, opened = false, closed = false, testText = 'ChartLingo write test ' + new Date().getTime();
+    exportDiagnostics.destinationFolder = displayPath(selectedDestinationFolder);
+    exportDiagnostics.resolvedDestinationFolder = displayPath(folder);
+    exportDiagnostics.destinationExists = !!folder.exists;
+    try { folder.getFiles(); exportDiagnostics.destinationReadable = true; }
+    catch (readError) { throw filesystemError('invalid_destination_path', 'read selected folder', 'Illustrator cannot read the selected destination folder.', folder, readError.message || readError); }
+    try {
+      testFile = fileInFolder(folder, '.chartlingo-write-test-' + new Date().getTime() + '-' + Math.floor(Math.random() * 100000) + '.tmp');
+      testFile.encoding = 'UTF-8';
+      opened = testFile.open('w');
+      if (!opened) throw filesystemError(/denied|permission/i.test(String(testFile.error)) ? 'permission_denied' : 'destination_folder_not_writable', 'open write-test file', 'The selected folder is not writable by Adobe Illustrator.', testFile, testFile.error);
+      if (!testFile.write(testText)) throw filesystemError('file_write_failed', 'write test data', 'The selected folder is not writable by Adobe Illustrator.', testFile, testFile.error);
+      closed = testFile.close(); opened = false;
+      if (closed === false) throw filesystemError('file_close_failed', 'close write-test file', 'Illustrator could not finish the destination-folder write test.', testFile, testFile.error);
+      testFile = new File(testFile.absoluteURI);
+      if (!testFile.exists || testFile.length <= 0) throw filesystemError('destination_folder_not_writable', 'verify write-test file', 'The selected folder did not preserve the write-test file.', testFile, testFile.error);
+      exportDiagnostics.destinationWritable = true; exportDiagnostics.writeTestPassed = true;
+    } catch (writeTestError) {
+      if (opened && testFile) try { testFile.close(); } catch (_) {}
+      if (testFile && testFile.exists) try { testFile.remove(); } catch (_) {}
+      if (writeTestError.chartLingoType) throw writeTestError;
+      throw filesystemError(/denied|permission/i.test(String(writeTestError.message || writeTestError)) ? 'permission_denied' : 'destination_folder_not_writable', 'test write permission', 'The selected folder is not writable by Adobe Illustrator.', testFile || folder, writeTestError.message || writeTestError);
+    }
+    if (testFile && testFile.exists) try { testFile.remove(); } catch (_) {}
+  }
+  function parseJson(text) {
+    if (typeof JSON !== 'undefined' && JSON.parse) return JSON.parse(text);
+    return eval('(' + text + ')');
+  }
+
   function clean(value) { return String(value || '').replace(/[\u0000-\u001F\u007F]+/g, ' ').replace(/^\s+|\s+$/g, ''); }
+  destinationFolder = resolveDestinationFolder(destinationFolder);
+  testDestinationFolder(destinationFolder);
+  if (!exportChoice.separate) {
+    destination = uniqueFile(destinationFolder, safeFileName(doc.name.replace(/\.[^.]+$/, ''), 'chartlingo-export') + '.chartlingo');
+    exportDiagnostics.expectedFiles.push(displayPath(destination));
+  }
   function frameId(artboardIndex, frameIndex) { return 'cl-tf-' + (artboardIndex + 1) + '-' + (frameIndex + 1); }
   function artboardFor(bounds) {
     var cx = (bounds[0] + bounds[2]) / 2, cy = (bounds[1] + bounds[3]) / 2, best = -1, bestArea = 0, i, r, left, right, top, bottom, area;
@@ -608,23 +697,90 @@
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.6.6'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.separate ? 'separate' : exportChoice.mode === 0 ? 'selected' : exportChoice.mode === 2 ? 'range' : 'all', artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.7.0'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.separate ? 'separate' : exportChoice.mode === 0 ? 'selected' : exportChoice.mode === 2 ? 'range' : 'all', artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
-  function safeName(value) { return clean(value).replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-'); }
-  function writePackage(file, data) { file.encoding = 'UTF-8'; file.open('w'); file.write(jsonStringify(data, '  ', 0)); file.close(); }
-  var outputCount = 0, outputPath = '';
+  function writePackage(file, data, artboardName) {
+    var payload = jsonStringify(data, '  ', 0), opened = false, written = false, closed = false, verifiedFile, verifyOpened = false, savedText = '', parsed;
+    file.encoding = 'UTF-8';
+    try {
+      opened = file.open('w');
+      if (!opened) throw filesystemError(/denied|permission/i.test(String(file.error)) ? 'permission_denied' : 'file_open_failed', 'open output file', 'Cannot open the output file for writing.', file, file.error);
+      written = file.write(payload);
+      if (!written) throw filesystemError('file_write_failed', 'write output file', 'Illustrator could not write the ChartLingo package.', file, file.error);
+      closed = file.close(); opened = false;
+      if (closed === false) throw filesystemError('file_close_failed', 'close output file', 'Illustrator could not finish writing the ChartLingo package.', file, file.error);
+      exportDiagnostics.filesWritten++;
+      exportDiagnostics.actualFiles.push(displayPath(file));
+      verifiedFile = new File(file.absoluteURI);
+      if (!verifiedFile.exists || verifiedFile.length <= 0) throw filesystemError('file_verification_failed', 'verify output file', 'The output file is missing or empty after writing.', verifiedFile, verifiedFile.error);
+      if (normalizePath(verifiedFile.parent.fsName) !== normalizePath(destinationFolder.fsName)) throw filesystemError('invalid_destination_path', 'verify output location', 'The output file was not created directly inside the selected folder.', verifiedFile, 'Expected parent: ' + displayPath(destinationFolder));
+      verifiedFile.encoding = 'UTF-8'; verifyOpened = verifiedFile.open('r');
+      if (!verifyOpened) throw filesystemError('file_verification_failed', 'read output file', 'The written package could not be reopened for verification.', verifiedFile, verifiedFile.error);
+      savedText = verifiedFile.read(); verifiedFile.close(); verifyOpened = false;
+      try { parsed = parseJson(savedText); }
+      catch (jsonError) { throw filesystemError('invalid_json_output', 'parse output JSON', 'The written package does not contain valid JSON.', verifiedFile, jsonError.message || jsonError); }
+      if (!parsed || parsed.schema !== 'https://chartlingo.local/schemas/package-v2.json' || !parsed.document || !parsed.document.artboards) throw filesystemError('invalid_json_output', 'verify package schema', 'The written file is not a valid ChartLingo package.', verifiedFile, 'Required schema or document data is missing.');
+      exportDiagnostics.verifiedFiles.push(displayPath(verifiedFile));
+      exportDiagnostics.fileSizes[displayPath(verifiedFile)] = verifiedFile.length;
+      exportDiagnostics.filesVerified++;
+      exportDiagnostics.artboardsCompleted += parsed.document.artboards.length;
+      return verifiedFile;
+    } catch (fileError) {
+      if (opened) try { file.close(); } catch (_) {}
+      if (verifyOpened && verifiedFile) try { verifiedFile.close(); } catch (_) {}
+      fileError.chartLingoArtboard = artboardName || 'Multiple artboards';
+      exportDiagnostics.fileErrors.push({type: fileError.chartLingoType || 'file_write_failed', artboard: fileError.chartLingoArtboard, operation: fileError.chartLingoOperation || 'write package', file: fileError.chartLingoFile || displayPath(file), error: fileError.chartLingoUnderlying || String(fileError.message || fileError)});
+      throw fileError;
+    }
+  }
+  function verifyCompleteExport() {
+    var i, j, expected, found, diskFiles = [], diskLookup = {}, diskEntry;
+    try { diskFiles = destinationFolder.getFiles(); }
+    catch (folderReadError) { throw filesystemError('file_verification_failed', 'inspect destination folder', 'Illustrator could not inspect the destination folder after export.', destinationFolder, folderReadError.message || folderReadError); }
+    for (i = 0; i < diskFiles.length; i++) {
+      diskEntry = diskFiles[i];
+      if (diskEntry instanceof File) diskLookup[normalizePath(displayPath(diskEntry))] = true;
+    }
+    for (i = 0; i < exportDiagnostics.expectedFiles.length; i++) {
+      expected = normalizePath(exportDiagnostics.expectedFiles[i]); found = false;
+      for (j = 0; j < exportDiagnostics.verifiedFiles.length; j++) if (normalizePath(exportDiagnostics.verifiedFiles[j]) === expected && diskLookup[expected]) { found = true; break; }
+      if (!found) exportDiagnostics.missingFiles.push(exportDiagnostics.expectedFiles[i]);
+    }
+    if (exportDiagnostics.missingFiles.length || exportDiagnostics.filesVerified !== exportDiagnostics.expectedFiles.length) throw filesystemError('file_verification_failed', 'verify completed export', 'Not every requested package was verified in the selected folder.', destinationFolder, 'Expected ' + exportDiagnostics.expectedFiles.length + ' file(s); verified ' + exportDiagnostics.filesVerified + '.');
+    exportDiagnostics.exportSucceeded = true;
+  }
+  function errorReport(error) {
+    var primaryType = exportDiagnostics.filesWritten ? 'partial_export_failed' : (error.chartLingoType || 'export_failed');
+    var lines = ['ChartLingoV2 export failed.', '', 'Type: ' + primaryType, 'Cause: ' + (error.chartLingoType || 'unknown'), 'Operation: ' + (error.chartLingoOperation || 'export package'), 'Artboard: ' + (error.chartLingoArtboard || 'Not applicable'), '', 'Destination folder:', displayPath(destinationFolder) || '(unresolved)', '', 'Output file:', error.chartLingoFile || '(not created)', '', 'Error:', error.chartLingoUnderlying || error.message || String(error)];
+    if (exportDiagnostics.actualFiles.length) lines.push('', 'Files successfully written before the failure:', exportDiagnostics.actualFiles.join('\n'));
+    lines.push('', 'Adobe Illustrator may need access under macOS System Settings > Privacy & Security > Files and Folders (or Full Disk Access).', 'Give Illustrator permission to access this folder, or run the exporter again and choose another writable folder.', '', 'The Illustrator document was left unchanged.');
+    return lines.join('\n');
+  }
+  var outputCount = 0, outputPaths = [], currentArtboardName = '', separateFiles = [], separateNames = [];
   if (exportChoice.separate) {
     for (i = 0; i < artboards.length; i++) {
-      var separateFile = new File(destination.fsName + '/' + safeName(doc.name.replace(/\.[^.]+$/, '')) + '-' + (artboards[i].index + 1) + '-' + safeName(artboards[i].name) + '.chartlingo');
-      writePackage(separateFile, packageFor([artboards[i]], '-artboard-' + (artboards[i].index + 1))); outputCount++; outputPath = destination.fsName;
+      currentArtboardName = artboards[i].name || ('Artboard ' + (artboards[i].index + 1));
+      separateNames[i] = safeFileName(doc.name.replace(/\.[^.]+$/, ''), 'chartlingo-export') + '-' + (artboards[i].index + 1) + '-' + safeFileName(currentArtboardName, 'Artboard-' + (artboards[i].index + 1)) + '.chartlingo';
+      separateFiles[i] = uniqueFile(destinationFolder, separateNames[i]);
+      exportDiagnostics.expectedFiles.push(displayPath(separateFiles[i]));
     }
-  } else { writePackage(destination, packageFor(artboards, '')); outputCount = 1; outputPath = destination.fsName; }
+    for (i = 0; i < artboards.length; i++) {
+      currentArtboardName = artboards[i].name || ('Artboard ' + (artboards[i].index + 1));
+      var separateFile = separateFiles[i];
+      separateFile = writePackage(separateFile, packageFor([artboards[i]], '-artboard-' + (artboards[i].index + 1)), currentArtboardName);
+      outputCount++; outputPaths.push(displayPath(separateFile));
+    }
+  } else {
+    destination = writePackage(destination, packageFor(artboards, ''), artboards.length === 1 ? artboards[0].name : 'Multiple artboards');
+    outputCount = 1; outputPaths.push(displayPath(destination));
+  }
+  verifyCompleteExport();
   try { progressWindow.close(); } catch (_) {}
-  alert('ChartLingoV2 export complete:\n' + outputPath + '\n\nExporter: 0.6.6\nMode: ' + (exportChoice.separate ? 'separate packages' : 'one package') + '\nFiles: ' + outputCount + '\nArtboards: ' + artboards.length + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
+  alert('ChartLingoV2 export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.7.0\nMode: ' + exportDiagnostics.exportMode + '\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
   } catch (exportError) {
     try { doc.artboards.setActiveArtboardIndex(initialActiveArtboard); } catch (_) {}
     try { progressWindow.close(); } catch (_) {}
     if (String(exportError.message || exportError) === '__CHARTLINGO_CANCELLED__') alert('ChartLingoV2 export cancelled. The Illustrator document was restored.');
-    else alert('ChartLingoV2 could not export this artboard:\n' + (exportError.message || exportError) + '\n\nThe Illustrator document was left unchanged. You can run the exporter again and choose another artboard.');
+    else alert(errorReport(exportError));
   }
 })();

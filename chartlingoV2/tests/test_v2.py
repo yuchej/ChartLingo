@@ -444,16 +444,20 @@ class ChartLingoV2Tests(unittest.TestCase):
         app = (ROOT / "app.js").read_text()
         styles = (ROOT / "styles.css").read_text()
         self.assertIn('id="multiAlignTools"', index)
-        for action in ["top", "vcenter", "bottom"]:
+        for action in ["left", "top", "vcenter", "bottom", "right"]:
             self.assertIn(f'data-align-action="{action}"', index)
-        self.assertEqual(index.count('class="align-guide"'), 3)
+        self.assertEqual(index.count('class="align-guide"'), 6)
         self.assertIn(".alignment-toolbar button svg", styles)
-        for action in ["left", "hcenter", "right", "distribute-h", "distribute-v"]:
+        for action in ["hcenter", "distribute-h", "distribute-v"]:
             self.assertNotIn(f'data-align-action="{action}"', index)
         self.assertNotIn("Position and text box", index)
         self.assertIn("function alignSelection", app)
+        self.assertIn("visibleBounds=new Map(selected.map(item=>[item.frameId,visualTextBounds(item)]))", app)
+        self.assertIn("item.layout.x+=visibleLeft-visibleBounds.get(item.frameId).x", app)
+        self.assertIn("if(selected.length===1){const item=selected[0],visible=visibleBounds.get(item.frameId);item.layout.x+=spec.width/2", app)
+        self.assertIn("const visibleCenter=(visibleLeft+visibleRight)/2", app)
         self.assertIn("function updateAlignmentToolbar", app)
-        self.assertIn("selected.length<2", app)
+        self.assertIn("count<1", app)
         self.assertIn("alignSelection(button.dataset.alignAction)", app)
         self.assertIn("button.setAttribute('aria-pressed','true')", app)
         self.assertIn(".multi-align-tools[hidden]", styles)
