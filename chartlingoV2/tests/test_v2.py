@@ -378,7 +378,6 @@ class ChartLingoV2Tests(unittest.TestCase):
             "editRotation", "editX", "editY", "editWidth", "editHeight",
             "editLineBreakMode", "selectionCount", "inspectorUndo",
             "resetGenerated", "resetSourceStyle", "cancelInspector",
-            "applyInspector",
         ]:
             self.assertIn(f'id="{element_id}"', index)
         self.assertIn("function semanticCategory", app)
@@ -391,7 +390,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("class=\"editing-studio\"", index)
         self.assertIn("class=\"gallery-workspace\"", index)
         self.assertIn('id="openEditor"', index)
-        self.assertIn('id="exitEditor"', index)
+        self.assertNotIn('id="exitEditor"', index)
         self.assertIn("editorOpen:false", app)
         self.assertIn("function enterEditor", app)
         self.assertIn("function exitEditor", app)
@@ -471,8 +470,33 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn('id="ignoreMismatch"', index)
         self.assertIn("checklist?'Ignore selected':'Ignore warning'", app)
         self.assertIn("function stageChecklistIgnore", app)
+        self.assertIn("select.disabled=true", app)
+        self.assertIn("Keep current ChartLingo text", app)
+        self.assertNotIn("No CSV choice is required; click Apply", app)
+        self.assertIn("const buckets=new Map", app)
+        self.assertIn("`table:${illustrator.sourceFrameId||'table'}:${illustrator.column}`", app)
+        self.assertIn("if(!fragmentGroups.length)return []", app)
+        self.assertNotIn("status:fragmentGroups.length?'fragmented_text_matches_full_csv_field':'csv_only_item'", app)
+        self.assertIn('content:"✓ Ignored — keep current ChartLingo text"', styles)
+        self.assertIn("document.querySelector('.mismatch-modal:not([hidden])')", app)
+        self.assertIn("node.classList.remove('show','modal-toast')", app)
+        self.assertIn("#toast.modal-toast{z-index:2000;top:50%;left:50%", styles)
         self.assertIn("row.dataset.resolution=replace?'replace':'keep'", app)
         self.assertIn("pendingFragment=fragmentRows.find(row=>!row.dataset.resolution)", app)
+        self.assertIn("fragmentOperations=fragmentRows.map", app)
+        self.assertIn("groups:pair?fragmentGroupsForPair(pair):[]", app)
+        self.assertIn("for(const item of fragmentOperations)", app)
+        self.assertIn("row.querySelector('.replace-fragments').classList.toggle('selected-decision'", app)
+        self.assertIn('.fragmented-actions .selected-decision:before{content:"✓"', styles)
+        self.assertNotIn('class="mismatch-decision"', app)
+        self.assertNotIn("status.textContent='Selected'", app)
+        self.assertNotIn("toast('Choice recorded.", app)
+        self.assertIn("if(pendingFragment){toast('Choose CSV format or ChartLingo format", app)
+        self.assertIn("<span>Current</span>", app)
+        self.assertIn("<span>CSV</span>", app)
+        self.assertNotIn("<dt>Current text boxes</dt>", app)
+        self.assertNotIn("<span>English output</span><strong>${CLV2.escape(pair.en", app)
+        self.assertNotIn("class=\"fragmented-confirmation\"", app)
         self.assertIn("if(unresolvedMismatches().length)openMismatchChecklist();else closeMismatchPanel()", app)
         self.assertIn("const mismatchReviewed=['resolved','ignored'].includes(object.dataMismatchStatus)", app)
         self.assertIn("reviewed=matches.every(object=>['resolved','ignored'].includes(object.dataMismatchStatus))", app)
@@ -505,7 +529,27 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("ensureDefaultFooter(artboard,list,spec)", app)
         self.assertIn("(?:zaobao|lhzb)", app)
         self.assertIn('core.js?v=20260914-01', index)
-        self.assertIn('app.js?v=20260914-05', index)
+        self.assertIn('app.js?v=20260914-14', index)
+
+    def test_exporter_has_simple_artboard_selection_and_optimized_photo_mode(self):
+        exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
+        app = (ROOT / "app.js").read_text()
+        index = (ROOT / "index.html").read_text()
+        self.assertIn("['Single artboard', 'Multiple artboards']", exporter)
+        self.assertIn("{multiselect: true}", exporter)
+        self.assertIn("Select at least one artboard from the list.", exporter)
+        self.assertNotIn("Specific range in one package", exporter)
+        self.assertNotIn("Each artboard as a separate package", exporter)
+        self.assertIn("['Optimized (recommended)', 'High quality']", exporter)
+        self.assertIn("imageMode: imageMode.selection.index === 0 ? 'optimized' : 'high-quality'", exporter)
+        self.assertIn("if (exportChoice.imageMode === 'high-quality')", exporter)
+        self.assertIn("artboards[i].previewSvg = null", exporter)
+        self.assertIn("exportChoice.indices.length > 1 ? ' · '", exporter)
+        self.assertIn("exportChoice.imageMode === 'optimized' ? artboards.length : artboards.length * 2", exporter)
+        self.assertIn("version: '0.8.0'", exporter)
+        self.assertIn("const artwork=board.artworkSvg", app)
+        self.assertIn("background}${texts}", app)
+        self.assertIn('app.js?v=20260914-14', index)
 
     def test_multi_selection_moves_as_a_group_and_supports_keyboard_nudging(self):
         app = (ROOT / "app.js").read_text()
@@ -555,18 +599,18 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("show-reference .editing-studio", styles)
         self.assertIn("show-reference .editor-reference-panel", styles)
 
-    def test_editor_back_replaces_artboard_tab_apply_moves_to_toolbar_and_mappings_hide(self):
+    def test_editor_has_save_back_tab_without_duplicate_back_or_apply_buttons(self):
         index = (ROOT / "index.html").read_text()
         app = (ROOT / "app.js").read_text()
         styles = (ROOT / "styles.css").read_text()
         self.assertIn("if(state.editorOpen){const back=document.createElement('button')", app)
-        self.assertIn("back.textContent='← Back to gallery'", app)
+        self.assertIn("back.textContent='← Save and back to gallery'", app)
         self.assertIn("renderTabs();renderCanvases();renderInspector()", app)
-        toolbar = index[index.index('class="preview-actions"'):index.index('</div></div>', index.index('class="preview-actions"'))]
-        self.assertLess(toolbar.index('id="redoEdit"'), toolbar.index('id="applyInspector"'))
+        self.assertNotIn('id="exitEditor"', index)
+        self.assertNotIn('id="applyInspector"', index)
         self.assertIn('class="lower-grid" hidden', index)
         self.assertIn(".lower-grid[hidden]{display:none!important}", styles)
-        self.assertIn("#app.editing-mode #applyInspector{display:inline-flex}", styles)
+        self.assertNotIn("#applyInspector", styles)
 
     def test_top_toolbar_groups_import_generate_and_export_dropdown(self):
         index = (ROOT / "index.html").read_text()

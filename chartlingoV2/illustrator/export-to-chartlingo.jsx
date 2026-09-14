@@ -9,47 +9,42 @@
     return (index + 1) + '. ' + (doc.artboards[index].name || ('Artboard ' + (index + 1))) + ' — ' + width + ' × ' + height;
   }
   function chooseArtboards() {
-    var dialog = new Window('dialog', 'ChartLingoV2 — Artboards'), group, mode, range, list, preflight, buttons, i, layerNames = [];
+    var dialog = new Window('dialog', 'ChartLingoV2 — Export'), group, mode, list, imageMode, imageHelp, preflight, buttons, i, layerNames = [], activeIndex = doc.artboards.getActiveArtboardIndex(), multipleAvailable = doc.artboards.length > 1;
     dialog.orientation = 'column'; dialog.alignChildren = ['fill', 'top'];
-    dialog.add('statictext', undefined, 'Choose how Illustrator artboards should be exported.');
+    dialog.add('statictext', undefined, 'Choose the artboard(s) to export.');
     group = dialog.add('group'); group.add('statictext', undefined, 'Mode:');
-    mode = group.add('dropdownlist', undefined, ['Selected artboard', 'All artboards in one package', 'Specific range in one package', 'Each artboard as a separate package']);
+    mode = group.add('dropdownlist', undefined, multipleAvailable ? ['Single artboard', 'Multiple artboards'] : ['Single artboard']);
     mode.selection = 0;
-    group = dialog.add('group'); group.add('statictext', undefined, 'Range:');
-    range = group.add('edittext', undefined, '1-' + doc.artboards.length); range.characters = 12; range.enabled = false;
-    list = dialog.add('edittext', undefined, '', {multiline: true, readonly: true, scrolling: true}); list.preferredSize = [520, Math.min(260, 54 + doc.artboards.length * 18)];
-    for (i = 0; i < doc.artboards.length; i++) list.text += artboardLabel(i) + (i + 1 < doc.artboards.length ? '\n' : '');
+    list = dialog.add('listbox', undefined, [], {multiselect: true}); list.preferredSize = [520, Math.min(280, Math.max(70, 28 + doc.artboards.length * 24))];
+    for (i = 0; i < doc.artboards.length; i++) list.add('item', artboardLabel(i));
+    list.selection = list.items[activeIndex]; list.enabled = false;
+    group = dialog.add('group'); group.add('statictext', undefined, 'Photo handling:');
+    imageMode = group.add('dropdownlist', undefined, ['Optimized (recommended)', 'High quality']); imageMode.selection = 0;
+    imageHelp = dialog.add('statictext', undefined, 'Optimized stores embedded photos once and rebuilds the Chinese preview from text metadata. This reduces package size and export time.', {multiline: true}); imageHelp.preferredSize = [520, 42];
     for (i = 0; i < doc.layers.length; i++) layerNames.push(doc.layers[i].name);
     preflight = dialog.add('statictext', undefined, 'Preflight: ' + doc.pageItems.length + ' page items · ' + doc.textFrames.length + ' text frames · ' + doc.pathItems.length + ' paths · ' + doc.groupItems.length + ' groups · ' + doc.placedItems.length + ' linked/placed items\nLayers: ' + layerNames.join(', '), {multiline: true});
     preflight.preferredSize = [520, 48];
     if (doc.pageItems.length > 5000 || doc.groupItems.length > 1000 || doc.placedItems.length > 20) {
-      var warning = dialog.add('statictext', undefined, 'Large/complex document detected. Export one selected artboard first; all-artboard export may take longer.', {multiline: true}); warning.graphics.foregroundColor = warning.graphics.newPen(warning.graphics.PenType.SOLID_COLOR, [0.75, 0.25, 0.05], 1);
+      var warning = dialog.add('statictext', undefined, 'Large/complex document detected. Use Optimized photo handling and export only the artboards you need.', {multiline: true}); warning.graphics.foregroundColor = warning.graphics.newPen(warning.graphics.PenType.SOLID_COLOR, [0.75, 0.25, 0.05], 1);
     }
-    mode.onChange = function () { range.enabled = mode.selection.index === 2; };
+    mode.onChange = function () { list.enabled = multipleAvailable && mode.selection.index === 1; if (!list.enabled) list.selection = list.items[activeIndex]; };
+    imageMode.onChange = function () { imageHelp.text = imageMode.selection.index === 0 ? 'Optimized stores embedded photos once and rebuilds the Chinese preview from text metadata. This reduces package size and export time.' : 'High quality stores both complete SVG previews. Use it only when file size and export speed are not a concern.'; };
     buttons = dialog.add('group'); buttons.alignment = 'right'; buttons.add('button', undefined, 'Cancel', {name: 'cancel'}); buttons.add('button', undefined, 'Continue', {name: 'ok'});
     if (dialog.show() !== 1) return null;
-    var indices = [], seen = {}, token, parts, start, end, n, text;
-    if (mode.selection.index === 0) indices.push(doc.artboards.getActiveArtboardIndex());
-    else if (mode.selection.index === 2) {
-      text = String(range.text || '').replace(/\s+/g, '');
-      var tokens = text.split(',');
-      for (i = 0; i < tokens.length; i++) {
-        token = tokens[i]; if (!token) continue; parts = token.split('-'); start = Number(parts[0]); end = parts.length > 1 ? Number(parts[1]) : start;
-        if (!isFinite(start) || !isFinite(end)) continue; if (start > end) { n = start; start = end; end = n; }
-        for (n = start; n <= end; n++) if (n >= 1 && n <= doc.artboards.length && !seen[n - 1]) { seen[n - 1] = true; indices.push(n - 1); }
-      }
-      indices.sort(function (a, b) { return a - b; });
-      if (!indices.length) { alert('Enter a valid artboard range, for example 1-3 or 1,3,5.'); return null; }
-    } else for (i = 0; i < doc.artboards.length; i++) indices.push(i);
-    return {indices: indices, separate: mode.selection.index === 3, mode: mode.selection.index};
+    var indices = [], selectedItems = list.selection instanceof Array ? list.selection : (list.selection ? [list.selection] : []);
+    if (mode.selection.index === 0) indices.push(activeIndex);
+    else for (i = 0; i < selectedItems.length; i++) indices.push(selectedItems[i].index);
+    indices.sort(function (a, b) { return a - b; });
+    if (!indices.length) { alert('Select at least one artboard from the list.'); return null; }
+    return {indices: indices, separate: false, mode: mode.selection.index, imageMode: imageMode.selection.index === 0 ? 'optimized' : 'high-quality'};
   }
   var exportChoice = chooseArtboards();
   if (!exportChoice) return;
-  var destinationFolder = Folder.selectDialog(exportChoice.separate ? 'Choose any writable folder for separate ChartLingo packages' : 'Choose any writable folder for the ChartLingo package');
+  var destinationFolder = Folder.selectDialog('Choose any writable folder for the ChartLingo package');
   if (!destinationFolder) return;
   var selectedDestinationFolder = destinationFolder;
   var destination = null;
-  var exportDiagnostics = {destinationFolder: '', resolvedDestinationFolder: '', destinationExists: false, destinationReadable: false, destinationWritable: false, writeTestPassed: false, expectedFiles: [], actualFiles: [], verifiedFiles: [], missingFiles: [], fileSizes: {}, fileErrors: [], exportMode: exportChoice.separate ? 'separate packages' : 'one package', artboardsRequested: exportChoice.indices.length, artboardsCompleted: 0, filesWritten: 0, filesVerified: 0, exportSucceeded: false};
+  var exportDiagnostics = {destinationFolder: '', resolvedDestinationFolder: '', destinationExists: false, destinationReadable: false, destinationWritable: false, writeTestPassed: false, expectedFiles: [], actualFiles: [], verifiedFiles: [], missingFiles: [], fileSizes: {}, fileErrors: [], exportMode: exportChoice.mode === 0 ? 'single artboard' : 'multiple artboards', imageMode: exportChoice.imageMode, artboardsRequested: exportChoice.indices.length, artboardsCompleted: 0, filesWritten: 0, filesVerified: 0, exportSucceeded: false};
   try { $.global.__chartLingoExportDiagnostics = exportDiagnostics; } catch (_) {}
   var selectedLookup = {}, selectedIndices = exportChoice.indices, selectionIndex;
   for (selectionIndex = 0; selectionIndex < selectedIndices.length; selectionIndex++) selectedLookup[selectedIndices[selectionIndex]] = true;
@@ -61,7 +56,7 @@
   function progress(stage, current, total, artboardName) {
     if (cancelled) throw new Error('__CHARTLINGO_CANCELLED__');
     var safeTotal = Math.max(1, total), percent = Math.max(0, Math.min(100, Math.round(current / safeTotal * 100)));
-    progressText.text = stage + (artboardName ? ' — ' + artboardName : '') + ' · ' + current + '/' + total; progressBar.value = percent;
+    progressText.text = stage + (artboardName ? ' — ' + artboardName : '') + (exportChoice.indices.length > 1 ? ' · ' + current + '/' + total : ''); progressBar.value = percent;
     if (current === 0 || current === total || current % 40 === 0) { progressWindow.update(); app.redraw(); $.sleep(1); }
     if (cancelled) throw new Error('__CHARTLINGO_CANCELLED__');
   }
@@ -690,14 +685,16 @@
   try { for (i = 0; i < doc.groupItems.length; i++) if (/outline|outlined/i.test(doc.groupItems[i].name)) outlinedCount++; } catch (_) {}
   var previousActiveArtboard = doc.artboards.getActiveArtboardIndex();
   for (i = 0; i < artboards.length; i++) {
-    progress('Rendering preview', i, artboards.length * 2, artboards[i].name);
-    artboards[i].previewSvg = readSvg(artboards[i].index);
-    progress('Rendering artwork', artboards.length + i, artboards.length * 2, artboards[i].name);
+    if (exportChoice.imageMode === 'high-quality') {
+      progress('Rendering full Chinese preview', i, artboards.length * 2, artboards[i].name);
+      artboards[i].previewSvg = readSvg(artboards[i].index);
+    } else artboards[i].previewSvg = null;
+    progress(exportChoice.imageMode === 'optimized' ? 'Embedding optimized artwork once' : 'Rendering artwork', exportChoice.imageMode === 'optimized' ? i + 1 : artboards.length + i, exportChoice.imageMode === 'optimized' ? artboards.length : artboards.length * 2, artboards[i].name);
     artboards[i].artworkSvg = readArtworkWithoutLiveText(artboards[i].index, artboards[i]);
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.7.0'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.separate ? 'separate' : exportChoice.mode === 0 ? 'selected' : exportChoice.mode === 2 ? 'range' : 'all', artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.0'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
   function writePackage(file, data, artboardName) {
     var payload = jsonStringify(data, '  ', 0), opened = false, written = false, closed = false, verifiedFile, verifyOpened = false, savedText = '', parsed;
@@ -776,7 +773,7 @@
   }
   verifyCompleteExport();
   try { progressWindow.close(); } catch (_) {}
-  alert('ChartLingoV2 export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.7.0\nMode: ' + exportDiagnostics.exportMode + '\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
+  alert('ChartLingoV2 export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.8.0\nMode: ' + exportDiagnostics.exportMode + '\nPhoto handling: ' + exportDiagnostics.imageMode + '\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
   } catch (exportError) {
     try { doc.artboards.setActiveArtboardIndex(initialActiveArtboard); } catch (_) {}
     try { progressWindow.close(); } catch (_) {}

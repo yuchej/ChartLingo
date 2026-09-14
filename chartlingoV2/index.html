@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ChartLingoV2</title>
   <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="styles.css?v=20260914-03">
+    <link rel="stylesheet" href="styles.css?v=20260914-08">
 </head>
 <body>
   <header class="topbar">
@@ -89,10 +89,9 @@
             </div></details>
             <div hidden aria-hidden="true"><input id="editX" type="number"><input id="editY" type="number"><input id="editWidth" type="number"><input id="editHeight" type="number"><select id="editLineBreakMode"><option value="auto">Auto</option><option value="single-line">Single line</option><option value="manual">Manual</option><option value="match-source">Match source layout</option></select><input id="editBorderRadius"><input id="editBoxFill"><input id="editFillOpacity"></div>
             <div hidden aria-hidden="true"><button id="inspectorUndo"></button><button id="resetSourceStyle"></button><button id="cancelInspector"></button></div>
-            <div class="inspector-footer"><button id="applyInspector" class="button primary">Apply</button></div>
           </aside>
           <section class="english-editor-preview">
-            <div class="panel-heading editor-toolbar"><div><span class="eyebrow">Output</span><h2>English graphic</h2></div><div class="preview-actions"><span id="outputDimensions"></span><button id="exitEditor" class="button back-button" type="button">← Back</button><button id="openEditor" class="button">Edit graphic</button><button id="undoEdit" class="button" disabled>↶ Undo</button><button id="redoEdit" class="button" disabled>↷ Redo</button><button id="resetGenerated" class="button" type="button">Reset</button><button id="dataMismatchWarning" class="button data-mismatch-warning" type="button" hidden>⚠ Data mismatch detected</button><button id="toggleReference" class="button" type="button" aria-pressed="false">Show Chinese reference</button></div></div>
+            <div class="panel-heading editor-toolbar"><div><span class="eyebrow">Output</span><h2>English graphic</h2></div><div class="preview-actions"><span id="outputDimensions"></span><button id="openEditor" class="button">Edit graphic</button><button id="undoEdit" class="button" disabled>↶ Undo</button><button id="redoEdit" class="button" disabled>↷ Redo</button><button id="resetGenerated" class="button" type="button">Reset</button><button id="dataMismatchWarning" class="button data-mismatch-warning" type="button" hidden>⚠ Data mismatch detected</button><button id="toggleReference" class="button" type="button" aria-pressed="false">Show Chinese reference</button></div></div>
             <div id="outputCanvas" class="canvas-host" tabindex="0" title="English graphic preview"><div class="panel-placeholder"><strong>English preview</strong><span>Upload files and generate English</span></div></div>
           </section>
         </section>
@@ -133,6 +132,6 @@
     </div>
   </section>
     <script src="core.js?v=20260914-01"></script>
-    <script src="app.js?v=20260914-05"></script>
+    <script src="app.js?v=20260914-14"></script>
 </body>
 </html>
