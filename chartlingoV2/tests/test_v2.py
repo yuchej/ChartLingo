@@ -58,6 +58,19 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertTrue((ROOT / "illustrator/export-to-chartlingo.jsx").is_file())
         self.assertTrue((ROOT / "illustrator/apply-chartlingo-result.jsx").is_file())
 
+    def test_browser_exports_offer_a_system_save_location_with_download_fallback(self):
+        app = (ROOT / "app.js").read_text()
+        self.assertIn("window.showSaveFilePicker", app)
+        self.assertIn("function chooseExportDestination", app)
+        self.assertIn("function saveExport", app)
+        self.assertIn("if(error?.name==='AbortError')", app)
+        self.assertIn("download(name,blob)", app)
+        self.assertIn("id:'chartlingo-export-location'", app)
+        self.assertNotIn("window.showDirectoryPicker", app)
+        self.assertNotIn('id="changeExportFolder"', (ROOT / "index.html").read_text())
+        for extension in ["svg", "png", "jpg"]:
+            self.assertIn(f"chooseExportDestination(name,'{extension}')", app)
+
     def test_embedded_svg_is_sanitized(self):
         core = (ROOT / "core.js").read_text()
         self.assertIn("CLV2.sanitizeSvg", core)
@@ -529,7 +542,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("ensureDefaultFooter(artboard,list,spec)", app)
         self.assertIn("(?:zaobao|lhzb)", app)
         self.assertIn('core.js?v=20260914-01', index)
-        self.assertIn('app.js?v=20260914-14', index)
+        self.assertIn('app.js?v=20260915-03', index)
 
     def test_exporter_has_simple_artboard_selection_and_optimized_photo_mode(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
@@ -549,7 +562,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("version: '0.8.0'", exporter)
         self.assertIn("const artwork=board.artworkSvg", app)
         self.assertIn("background}${texts}", app)
-        self.assertIn('app.js?v=20260914-14', index)
+        self.assertIn('app.js?v=20260915-03', index)
 
     def test_multi_selection_moves_as_a_group_and_supports_keyboard_nudging(self):
         app = (ROOT / "app.js").read_text()
