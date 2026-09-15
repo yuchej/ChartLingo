@@ -542,7 +542,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("ensureDefaultFooter(artboard,list,spec)", app)
         self.assertIn("(?:zaobao|lhzb)", app)
         self.assertIn('core.js?v=20260914-01', index)
-        self.assertIn('app.js?v=20260915-03', index)
+        self.assertIn('app.js?v=20260915-04', index)
 
     def test_exporter_has_simple_artboard_selection_and_optimized_photo_mode(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
@@ -559,10 +559,21 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("artboards[i].previewSvg = null", exporter)
         self.assertIn("exportChoice.indices.length > 1 ? ' · '", exporter)
         self.assertIn("exportChoice.imageMode === 'optimized' ? artboards.length : artboards.length * 2", exporter)
-        self.assertIn("version: '0.8.0'", exporter)
+        self.assertIn("version: '0.8.1'", exporter)
+        self.assertIn("options.preserveEditability = false", exporter)
+        self.assertIn("options.optimizeForSVGViewer = true", exporter)
+        self.assertIn("function readScreenArtworkWithoutLiveText", exporter)
+        self.assertIn("new ExportOptionsJPEG()", exporter)
+        self.assertIn("options.qualitySetting = 70", exporter)
+        self.assertIn("artboards[i].imageObjects.length ? readScreenArtworkWithoutLiveText", exporter)
+        self.assertIn("data:image/jpeg;base64", exporter)
+        self.assertIn("data-chartlingo-flattened-artwork", exporter)
+        self.assertIn("data-chartlingo-flattened-artwork", app)
+        self.assertIn("verifiedFile.length < payload.length", exporter)
+        self.assertNotIn("savedText = verifiedFile.read()", exporter)
         self.assertIn("const artwork=board.artworkSvg", app)
         self.assertIn("background}${texts}", app)
-        self.assertIn('app.js?v=20260915-03', index)
+        self.assertIn('app.js?v=20260915-04', index)
 
     def test_multi_selection_moves_as_a_group_and_supports_keyboard_nudging(self):
         app = (ROOT / "app.js").read_text()
