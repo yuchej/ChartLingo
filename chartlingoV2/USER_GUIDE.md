@@ -90,9 +90,9 @@ Rules:
 ## 4. Generate the English chart
 
 1. Open [ChartLingoV2](https://yuchej.github.io/ChartLingo/chartlingoV2/).
-2. Select **Import Illustrator Package** and upload the `.chartlingo` file.
-3. Select **Import CH/EN CSV or TXT** and upload the translation file.
-4. Select **Generate English**.
+2. Select **Import .chartlingo File** and upload the `.chartlingo` file.
+3. Select **Import CSV or TXT** and upload the translation file.
+4. The English result generates automatically after both files are loaded.
 
 ## 5. Review and edit
 
