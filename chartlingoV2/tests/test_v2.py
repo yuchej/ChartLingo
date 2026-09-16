@@ -542,7 +542,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("ensureDefaultFooter(artboard,list,spec)", app)
         self.assertIn("(?:zaobao|lhzb)", app)
         self.assertIn('core.js?v=20260914-01', index)
-        self.assertIn('app.js?v=20260915-04', index)
+        self.assertIn('app.js?v=20260916-01', index)
 
     def test_exporter_has_simple_artboard_selection_and_optimized_photo_mode(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
@@ -573,7 +573,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertNotIn("savedText = verifiedFile.read()", exporter)
         self.assertIn("const artwork=board.artworkSvg", app)
         self.assertIn("background}${texts}", app)
-        self.assertIn('app.js?v=20260915-04', index)
+        self.assertIn('app.js?v=20260916-01', index)
 
     def test_multi_selection_moves_as_a_group_and_supports_keyboard_nudging(self):
         app = (ROOT / "app.js").read_text()
@@ -643,7 +643,8 @@ class ChartLingoV2Tests(unittest.TestCase):
         top_actions = index[index.index('<div class="top-actions">'):index.index('</div>\n  </header>')]
         self.assertIn('id="packageInput"', top_actions)
         self.assertIn('id="csvInput"', top_actions)
-        self.assertIn('id="generate" class="button primary"', top_actions)
+        self.assertNotIn('id="generate"', top_actions)
+        self.assertIn('Import .chartlingo file', top_actions)
         self.assertIn('class="toolbar-divider"', top_actions)
         self.assertIn('class="export-menu"', top_actions)
         self.assertIn('id="exportSvg"', top_actions)
@@ -655,6 +656,16 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn('class="projectbar" hidden', index)
         self.assertIn(".projectbar[hidden]{display:none!important}", styles)
         self.assertIn("#app:not(.editing-mode) .canvas-host svg{width:auto;max-width:100%;height:auto;max-height:70vh}", styles)
+
+    def test_generation_starts_automatically_after_both_inputs_are_ready(self):
+        app = (ROOT / "app.js").read_text()
+        index = (ROOT / "index.html").read_text()
+        self.assertIn("async function maybeAutoGenerate()", app)
+        self.assertIn("await maybeAutoGenerate()", app)
+        self.assertGreaterEqual(app.count("await maybeAutoGenerate()"), 2)
+        self.assertIn("generationInProgress", app)
+        self.assertNotIn("$('generate')", app)
+        self.assertIn('app.js?v=20260916-01', index)
 
     def test_illustrator_tab_tables_export_as_independent_cells(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
