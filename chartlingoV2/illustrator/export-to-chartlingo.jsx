@@ -427,6 +427,9 @@
     if (contentType === 'indicator') return 'change-row';
     return null;
   }
+  function normalizeAdobeSvgNamespaces(value) {
+    return String(value || '').replace(/&ns_extend;/g, 'http://ns.adobe.com/Extensibility/1.0/').replace(/&ns_ai;/g, 'http://ns.adobe.com/AdobeIllustrator/10.0/').replace(/&ns_graphs;/g, 'http://ns.adobe.com/Graphs/1.0/');
+  }
   function readSvg(artboardIndex, optimizedImages) {
     var stem = 'chartlingo-v2-preview-' + new Date().getTime() + '-' + artboardIndex, temporary = new File(Folder.temp.fsName + '/' + stem + '.svg');
     var options = new ExportOptionsSVG();
@@ -448,6 +451,7 @@
     generated.encoding = 'UTF-8'; generated.open('r'); var value = generated.read(); generated.close();
     try { generated.remove(); } catch (_) {}
     try { for (var cleanupIndex = 0; cleanupIndex < matches.length; cleanupIndex++) if (matches[cleanupIndex].exists) matches[cleanupIndex].remove(); } catch (_) {}
+    value = normalizeAdobeSvgNamespaces(value);
     return optimizedImages ? value.replace(/>\s+</g, '><') : value;
   }
   function readArtworkWithoutLiveText(artboardIndex, artboardRecord) {
@@ -734,7 +738,7 @@
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.1'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.2'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
   function writePackage(file, data, artboardName) {
     var payload, opened = false, written = false, closed = false, verifiedFile;

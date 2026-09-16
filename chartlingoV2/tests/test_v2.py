@@ -74,8 +74,26 @@ class ChartLingoV2Tests(unittest.TestCase):
     def test_embedded_svg_is_sanitized(self):
         core = (ROOT / "core.js").read_text()
         self.assertIn("CLV2.sanitizeSvg", core)
+        self.assertIn("CLV2.normalizeAdobeSvgNamespaces", core)
+        self.assertIn("&ns_extend;", core)
+        self.assertIn("http://ns.adobe.com/AdobeIllustrator/10.0/", core)
         self.assertIn("script,foreignObject,iframe,object,embed,audio,video", core)
         self.assertIn("name.startsWith('on')", core)
+
+    def test_exporter_repairs_adobe_svg_namespace_entities(self):
+        exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
+        self.assertIn("function normalizeAdobeSvgNamespaces", exporter)
+        self.assertIn("value = normalizeAdobeSvgNamespaces(value)", exporter)
+        self.assertIn("version: '0.8.2'", exporter)
+
+    def test_text_box_resize_previews_live_text_reflow(self):
+        app = (ROOT / "app.js").read_text()
+        self.assertIn("function editableReflowLines", app)
+        self.assertIn("function previewTextBoxReflow", app)
+        self.assertIn("previewTextBoxReflow(node,object,preview)", app)
+        self.assertIn("text.replaceChildren", app)
+        self.assertIn("state.manualSelection.size===1?object.layout:visualTextBounds(object)", app)
+        self.assertIn("if(message==='Text box resized and text reflowed.')return", app)
 
     def test_illustrator_scripts_do_not_require_native_json(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
