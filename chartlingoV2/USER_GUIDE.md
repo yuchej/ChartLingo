@@ -49,7 +49,7 @@ C:\Program Files\Adobe\Adobe Illustrator 2026\Presets\en_US\Scripts\
 4. Export the selected artboard.
 5. Save the `.chartlingo` package.
 
-Exporter 0.7.0 asks you to choose any destination folder available to Illustrator, including nested folders and names containing spaces or Chinese characters. It first tests write access inside that exact folder, then writes a collision-safe package name based on the Illustrator document name. Each package is reopened and checked for non-empty, valid ChartLingo JSON before success is reported. If macOS blocks access, the exporter reports the selected folder, affected output file, filesystem error, and relevant Privacy & Security action. It separates explicit line breaks and items divided by Tabs, repeated spaces, or full-width spaces into independent ChartLingo text objects. This improves CSV/TXT matching without changing the Illustrator artwork. A multi-line header remains one text object when all its lines use the same font size. Table columns retain their Illustrator Tab anchors and a usable final-column width. Numeric chart scales also remain protected so decimal values are not broken apart.
+Exporter 0.8.3 asks you to choose any destination folder available to Illustrator, including nested folders and names containing spaces or Chinese characters. It first tests write access inside that exact folder, then writes a collision-safe package name based on the Illustrator document name. Each package is reopened and checked for non-empty, valid ChartLingo JSON before success is reported. If macOS blocks access, the exporter reports the selected folder, affected output file, filesystem error, and relevant Privacy & Security action. It separates explicit line breaks and items divided by Tabs, repeated spaces, or full-width spaces into independent ChartLingo text objects. This improves CSV/TXT matching without changing the Illustrator artwork. A multi-line header remains one text object when all its lines use the same font size. Table columns retain their Illustrator Tab anchors and a usable final-column width. Numeric chart scales remain protected, and decimal fragments such as `8` and `.0` are rejoined as `8.0`.
 
 ## 3. Create the CSV or TXT translation file
 
@@ -114,6 +114,7 @@ Check:
 
 ## 6. Export
 
+- Leave **Output size** on **Auto height** for the existing content-based canvas, or select **Fixed 1200 × 800** for only the active artboard. Fixed mode scales the complete design proportionally and adds white space when needed; it does not stretch the artwork.
 - **Export SVG** for vector output.
 - **Export PNG** for image output.
 - Review the exported file before publishing.

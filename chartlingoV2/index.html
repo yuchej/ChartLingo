@@ -90,7 +90,7 @@
             <div hidden aria-hidden="true"><button id="inspectorUndo"></button><button id="resetSourceStyle"></button><button id="cancelInspector"></button></div>
           </aside>
           <section class="english-editor-preview">
-            <div class="panel-heading editor-toolbar"><div><span class="eyebrow">Output</span><h2>English graphic</h2></div><div class="preview-actions"><span id="outputDimensions"></span><button id="openEditor" class="button">Edit graphic</button><button id="undoEdit" class="button" disabled>↶ Undo</button><button id="redoEdit" class="button" disabled>↷ Redo</button><button id="resetGenerated" class="button" type="button">Reset</button><button id="dataMismatchWarning" class="button data-mismatch-warning" type="button" hidden>⚠ Data mismatch detected</button><button id="toggleReference" class="button" type="button" aria-pressed="false">Show Chinese reference</button></div></div>
+            <div class="panel-heading editor-toolbar"><div><span class="eyebrow">Output</span><h2>English graphic</h2></div><div class="preview-actions"><label class="output-size-control">Output size<select id="outputSizeMode" aria-label="Output size"><option value="auto">Auto height</option><option value="fixed">Fixed 1200 × 800</option></select></label><span id="outputDimensions"></span><button id="openEditor" class="button">Edit graphic</button><button id="undoEdit" class="button" disabled>↶ Undo</button><button id="redoEdit" class="button" disabled>↷ Redo</button><button id="resetGenerated" class="button" type="button">Reset</button><button id="dataMismatchWarning" class="button data-mismatch-warning" type="button" hidden>⚠ Data mismatch detected</button><button id="toggleReference" class="button" type="button" aria-pressed="false">Show Chinese reference</button></div></div>
             <div id="outputCanvas" class="canvas-host" tabindex="0" title="English graphic preview"><div class="panel-placeholder"><strong>English preview</strong><span>Upload files and generate English</span></div></div>
           </section>
         </section>
@@ -130,7 +130,7 @@
       <div class="mismatch-actions"><button id="confirmSeparation" class="button primary" type="button">Apply separation and match all fields</button><button id="editMismatchMapping" class="button" type="button" hidden>Adjust split manually</button><button id="keepCombined" class="button" type="button" hidden>Keep as one text box</button><button id="ignoreMismatch" class="button" type="button">Ignore warning</button><button id="cancelMismatch" class="button" type="button">Cancel</button></div>
     </div>
   </section>
-    <script src="core.js?v=20260916-02"></script>
-    <script src="app.js?v=20260916-03"></script>
+    <script src="core.js?v=20260918-02"></script>
+    <script src="app.js?v=20260918-02"></script>
 </body>
 </html>

@@ -84,7 +84,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         self.assertIn("function normalizeAdobeSvgNamespaces", exporter)
         self.assertIn("value = normalizeAdobeSvgNamespaces(value)", exporter)
-        self.assertIn("version: '0.8.2'", exporter)
+        self.assertIn("version: '0.8.3'", exporter)
 
     def test_text_box_resize_previews_live_text_reflow(self):
         app = (ROOT / "app.js").read_text()
@@ -94,6 +94,31 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("text.replaceChildren", app)
         self.assertIn("state.manualSelection.size===1?object.layout:visualTextBounds(object)", app)
         self.assertIn("if(message==='Text box resized and text reflowed.')return", app)
+
+    def test_fixed_1200_by_800_output_is_opt_in_per_artboard(self):
+        index = (ROOT / "index.html").read_text()
+        app = (ROOT / "app.js").read_text()
+        self.assertIn('id="outputSizeMode"', index)
+        self.assertIn('value="auto">Auto height', index)
+        self.assertIn('value="fixed">Fixed 1200 × 800', index)
+        self.assertIn("outputModes:new Map()", app)
+        self.assertIn("fixedOutputTransforms:new Map()", app)
+        self.assertIn("state.outputModes.get(artboard.id)==='fixed'", app)
+        self.assertIn("fixedHeight=800", app)
+        self.assertIn("800/previous.height", app)
+        self.assertIn("centerY-previous.cropTop*ratio", app)
+        self.assertIn("function changeOutputSizeMode", app)
+        self.assertIn("$('outputSizeMode').onchange", app)
+
+    def test_exporter_joins_fragmented_decimal_axis_lines(self):
+        core = (ROOT / "core.js").read_text()
+        exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
+        self.assertIn("CLV2.mergeSpatialDecimalTicks", core)
+        self.assertIn("vertical>tolerance", core)
+        self.assertIn("aligned.length<3", core)
+        self.assertIn("function joinedNumericAxisLines", exporter)
+        self.assertIn("lines.push(parts[i] + parts[i + 1])", exporter)
+        self.assertIn("return joinedNumericAxisLines", exporter)
 
     def test_illustrator_scripts_do_not_require_native_json(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
@@ -110,7 +135,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("querySelectorAll('text,textPath,flowRoot,flowPara')", core)
         self.assertIn("const width=1200", app)
         self.assertIn("sourceWidth=Number(artboard.bounds.width)", app)
-        self.assertIn("naturalHeight=Math.round(sourceHeight*scaleY)", app)
+        self.assertIn("naturalHeight=fixed?fixedHeight:Math.round(contentHeight)", app)
         self.assertIn('transform="translate(0 ${-spec.cropTop}) scale(${spec.scale})"', app)
         self.assertNotIn("source-masks", app)
         self.assertNotIn("source-mask", app)
@@ -559,8 +584,8 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("LHZB Graphic: AI-Assisted Translation", app)
         self.assertIn("ensureDefaultFooter(artboard,list,spec)", app)
         self.assertIn("(?:zaobao|lhzb)", app)
-        self.assertIn('core.js?v=20260914-01', index)
-        self.assertIn('app.js?v=20260916-01', index)
+        self.assertIn('core.js?v=20260918-02', index)
+        self.assertIn('app.js?v=20260918-02', index)
 
     def test_exporter_has_simple_artboard_selection_and_optimized_photo_mode(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
@@ -577,7 +602,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("artboards[i].previewSvg = null", exporter)
         self.assertIn("exportChoice.indices.length > 1 ? ' · '", exporter)
         self.assertIn("exportChoice.imageMode === 'optimized' ? artboards.length : artboards.length * 2", exporter)
-        self.assertIn("version: '0.8.1'", exporter)
+        self.assertIn("version: '0.8.3'", exporter)
         self.assertIn("options.preserveEditability = false", exporter)
         self.assertIn("options.optimizeForSVGViewer = true", exporter)
         self.assertIn("function readScreenArtworkWithoutLiveText", exporter)
@@ -591,7 +616,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertNotIn("savedText = verifiedFile.read()", exporter)
         self.assertIn("const artwork=board.artworkSvg", app)
         self.assertIn("background}${texts}", app)
-        self.assertIn('app.js?v=20260916-01', index)
+        self.assertIn('app.js?v=20260918-02', index)
 
     def test_multi_selection_moves_as_a_group_and_supports_keyboard_nudging(self):
         app = (ROOT / "app.js").read_text()
@@ -684,7 +709,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertGreaterEqual(app.count("await maybeAutoGenerate()"), 2)
         self.assertIn("generationInProgress", app)
         self.assertNotIn("$('generate')", app)
-        self.assertIn('app.js?v=20260916-01', index)
+        self.assertIn('app.js?v=20260918-02', index)
 
     def test_illustrator_tab_tables_export_as_independent_cells(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()

@@ -56,4 +56,24 @@ const repairedCells = global.__CLV2.coalesceNumericAxes(fragmentedCells);
 if (repairedCells.length !== 1) throw new Error("Fragmented numeric cells should become one text object");
 if (repairedCells[0].visibleLines.join("|") !== "1.2|1.0|0.8|0.6") throw new Error("Same-row numeric fragments were not joined");
 
+const independentFragments = [
+  ["8", 100, 0], [".0", 116, 0],
+  ["7", 100, 30], [".5", 116, 30],
+  ["7", 100, 60], [".0", 116, 60],
+  ["6", 100, 90], [".5", 116, 90],
+].map(([sourceText, x, y], index) => ({
+  id: `independent-${index}`,
+  sourceText,
+  visibleLines: [sourceText],
+  kind: "point",
+  role: "DATA_LABEL",
+  bounds: { x, y, width: sourceText.startsWith(".") ? 18 : 14, height: 22 },
+  style: { fontSize: 14 },
+  illustrator: { sourceFrameId: `separate-source-${index}` },
+}));
+const repairedIndependent = global.__CLV2.mergeSpatialDecimalTicks(independentFragments);
+if (repairedIndependent.length !== 4) throw new Error("Independent decimal fragments should become four tick objects");
+if (repairedIndependent.map(frame => frame.sourceText).join("|") !== "8.0|7.5|7.0|6.5") throw new Error("Spatial decimal fragments were not joined correctly");
+if (repairedIndependent.some(frame => frame.visibleLines.length !== 1)) throw new Error("Each repaired tick must remain one logical text box");
+
 process.stdout.write("numeric axis coalescing: passed\n");
