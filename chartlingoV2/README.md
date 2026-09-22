@@ -1,8 +1,8 @@
-# ChartLingoV2
+# ChartLingo
 
-ChartLingoV2 is a separate source-first prototype. It does not replace or modify the original ChartLingo application in the repository root.
+This directory contains the source-first ChartLingo application.
 
-For team testing and step-by-step Illustrator setup, see the [ChartLingoV2 Team User Guide](USER_GUIDE.md).
+For team testing and step-by-step Illustrator setup, see the [ChartLingo Team User Guide](USER_GUIDE.md).
 
 ## Included vertical slice
 
@@ -16,7 +16,7 @@ For team testing and step-by-step Illustrator setup, see the [ChartLingoV2 Team 
 - Source SVG text is removed structurally before English is generated; V2 no longer paints white masks over Chinese text.
 - The Illustrator exporter hides live text while generating the artwork preview, so source glyph outlines are not duplicated behind English.
 - Packages contain `previewSvg` for the complete Chinese reference. ChartLingo derives the English artwork in the browser by removing live SVG text.
-- Illustrator exporter 0.8.3 exports directly into any selected folder, including nested folders and paths containing spaces or Unicode characters. It tests write access in that exact folder, generates collision-safe filenames from the Illustrator document name, reads every completed package back, validates its JSON and schema, and only reports success after every expected file is present and verified. It separates explicit lines and whitespace-delimited items inside a text frame for better translation matching, keeps a same-size multi-line headline as one object, and rejoins decimal axis fragments such as `8` + `.0`. Tabular exports preserve tab anchors and give the final column a full neighboring column width.
+- Illustrator exporter 0.8.4 exports directly into any selected folder, including nested folders and paths containing spaces or Unicode characters. It tests write access in that exact folder, generates collision-safe filenames from the Illustrator document name, reads every completed package back, validates its JSON and schema, and only reports success after every expected file is present and verified. It removes XML-invalid control characters from embedded SVG artwork, while the browser importer repeats the cleanup for packages made with older exporters. It separates explicit lines and whitespace-delimited items inside a text frame for better translation matching, keeps a same-size multi-line headline as one object, and rejoins decimal axis fragments such as `8` + `.0`. Tabular exports preserve tab anchors and give the final column a full neighboring column width.
 - Merged chart content records a structural `styleRole` and inherits only from a same-level sibling. Same-row siblings take priority, followed by the dominant same-role style in the surrounding chart section; translation length and wrapped-line count do not choose the font size.
 - Chart-content objects support per-object Auto, Single line, and Manual line-break modes. Headline, subtitle, footer, Source, and Credit objects are excluded from this control.
 - Multiple chart-content objects can be selected in the mapping panel and merged into one canonical CSV field. The merged output records `mergedFrom` and `csvField`, inherits the surrounding header typography and column geometry, and remains one logical translation item even when it wraps visually.
@@ -29,7 +29,7 @@ For team testing and step-by-step Illustrator setup, see the [ChartLingoV2 Team 
 - Retained multi-line frames preserve their original visible lines instead of collapsing into one long line.
 - English remains anchored to the source text frame's exact top-left position; fitting uses wrapping and font reduction rather than movement.
 - Bundled Roboto Regular and Bold are used for measurement, preview, PNG and editable SVG export.
-- Direct SVG and PNG export from ChartLingoV2.
+- Direct SVG and PNG export from ChartLingo.
 - Original Chinese layers are not intentionally overwritten.
 
 ## Run
@@ -59,7 +59,7 @@ Scripts are in `illustrator/`:
 
 1. Open a production file in Illustrator.
 2. Run `export-to-chartlingo.jsx` through **File → Scripts → Other Script…**.
-3. Import the resulting `.chartlingo` file into ChartLingoV2.
+3. Import the resulting `.chartlingo` file into ChartLingo.
 4. Import the approved CSV or TXT file and, when available, the matching English reference `.chartlingo` package.
 5. Generate English, review and run checks.
 6. Export directly as SVG or PNG when the result is ready.

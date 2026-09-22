@@ -6,7 +6,16 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
-class ChartLingoV2Tests(unittest.TestCase):
+class ChartLingoTests(unittest.TestCase):
+    def test_product_name_is_chartlingo(self):
+        index = (ROOT / "index.html").read_text()
+        exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
+        self.assertIn("<title>ChartLingo</title>", index)
+        self.assertIn("<span>ChartLingo</span>", index)
+        self.assertIn("ChartLingo — Export", exporter)
+        self.assertNotIn("ChartLingoV2", index)
+        self.assertNotIn("ChartLingoV2", exporter)
+
     def test_v2_is_self_contained(self):
         for name in ["index.html", "styles.css", "core.js", "app.js", "README.md"]:
             self.assertTrue((ROOT / name).is_file(), name)
@@ -74,6 +83,8 @@ class ChartLingoV2Tests(unittest.TestCase):
     def test_embedded_svg_is_sanitized(self):
         core = (ROOT / "core.js").read_text()
         self.assertIn("CLV2.sanitizeSvg", core)
+        self.assertIn("CLV2.stripInvalidXmlCharacters", core)
+        self.assertIn("Removed ${removed} invalid SVG control character", core)
         self.assertIn("CLV2.normalizeAdobeSvgNamespaces", core)
         self.assertIn("&ns_extend;", core)
         self.assertIn("http://ns.adobe.com/AdobeIllustrator/10.0/", core)
@@ -83,8 +94,9 @@ class ChartLingoV2Tests(unittest.TestCase):
     def test_exporter_repairs_adobe_svg_namespace_entities(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         self.assertIn("function normalizeAdobeSvgNamespaces", exporter)
-        self.assertIn("value = normalizeAdobeSvgNamespaces(value)", exporter)
-        self.assertIn("version: '0.8.3'", exporter)
+        self.assertIn("function stripInvalidXmlCharacters", exporter)
+        self.assertIn("stripInvalidXmlCharacters(normalizeAdobeSvgNamespaces(value))", exporter)
+        self.assertIn("version: '0.8.4'", exporter)
 
     def test_text_box_resize_previews_live_text_reflow(self):
         app = (ROOT / "app.js").read_text()
@@ -281,7 +293,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("artboards[i].previewSvg = readSvg(artboards[i].index)", exporter)
         self.assertIn("position: {x: rect[0], y: rect[1]}", exporter)
         self.assertIn("orientation: width >= height ? 'landscape' : 'portrait'", exporter)
-        self.assertIn("new Window('palette', 'ChartLingoV2 Export')", exporter)
+        self.assertIn("new Window('palette', 'ChartLingo Export')", exporter)
         self.assertIn("Cancel export", exporter)
         self.assertIn("function progress(stage, current, total, artboardName)", exporter)
         self.assertIn("artboards[i].previewSvg = readSvg(artboards[i].index)", exporter)
@@ -584,8 +596,8 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("LHZB Graphic: AI-Assisted Translation", app)
         self.assertIn("ensureDefaultFooter(artboard,list,spec)", app)
         self.assertIn("(?:zaobao|lhzb)", app)
-        self.assertIn('core.js?v=20260918-02', index)
-        self.assertIn('app.js?v=20260918-02', index)
+        self.assertIn('core.js?v=20260922-01', index)
+        self.assertIn('app.js?v=20260922-01', index)
 
     def test_exporter_has_simple_artboard_selection_and_optimized_photo_mode(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
@@ -602,7 +614,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertIn("artboards[i].previewSvg = null", exporter)
         self.assertIn("exportChoice.indices.length > 1 ? ' · '", exporter)
         self.assertIn("exportChoice.imageMode === 'optimized' ? artboards.length : artboards.length * 2", exporter)
-        self.assertIn("version: '0.8.3'", exporter)
+        self.assertIn("version: '0.8.4'", exporter)
         self.assertIn("options.preserveEditability = false", exporter)
         self.assertIn("options.optimizeForSVGViewer = true", exporter)
         self.assertIn("function readScreenArtworkWithoutLiveText", exporter)
@@ -616,7 +628,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertNotIn("savedText = verifiedFile.read()", exporter)
         self.assertIn("const artwork=board.artworkSvg", app)
         self.assertIn("background}${texts}", app)
-        self.assertIn('app.js?v=20260918-02', index)
+        self.assertIn('app.js?v=20260922-01', index)
 
     def test_multi_selection_moves_as_a_group_and_supports_keyboard_nudging(self):
         app = (ROOT / "app.js").read_text()
@@ -709,7 +721,7 @@ class ChartLingoV2Tests(unittest.TestCase):
         self.assertGreaterEqual(app.count("await maybeAutoGenerate()"), 2)
         self.assertIn("generationInProgress", app)
         self.assertNotIn("$('generate')", app)
-        self.assertIn('app.js?v=20260918-02', index)
+        self.assertIn('app.js?v=20260922-01', index)
 
     def test_illustrator_tab_tables_export_as_independent_cells(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()

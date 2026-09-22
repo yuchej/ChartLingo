@@ -1,4 +1,4 @@
-# ChartLingoV2 Quick User Guide
+# ChartLingo Quick User Guide
 
 > Testing prototype: keep the original Illustrator file and check the English chart before publishing.
 
@@ -8,7 +8,7 @@
 - Original `.ai` chart with live, editable text.
 - [Illustrator export script](https://drive.google.com/drive/folders/15RGGpvhxGXEzK9KwODGHV9rPNvJfAFVP?usp=drive_link).
 - [ChartLingo Translation Gem](https://gemini.google.com/gem/18JlfyILMc9Ts_8a9-Y_C16c-3zXiQQs0?usp=sharing).
-- [ChartLingoV2](https://yuchej.github.io/ChartLingo/chartlingoV2/).
+- [ChartLingo](https://yuchej.github.io/ChartLingo/chartlingoV2/).
 
 ## Workflow
 
@@ -49,7 +49,7 @@ C:\Program Files\Adobe\Adobe Illustrator 2026\Presets\en_US\Scripts\
 4. Export the selected artboard.
 5. Save the `.chartlingo` package.
 
-Exporter 0.8.3 asks you to choose any destination folder available to Illustrator, including nested folders and names containing spaces or Chinese characters. It first tests write access inside that exact folder, then writes a collision-safe package name based on the Illustrator document name. Each package is reopened and checked for non-empty, valid ChartLingo JSON before success is reported. If macOS blocks access, the exporter reports the selected folder, affected output file, filesystem error, and relevant Privacy & Security action. It separates explicit line breaks and items divided by Tabs, repeated spaces, or full-width spaces into independent ChartLingo text objects. This improves CSV/TXT matching without changing the Illustrator artwork. A multi-line header remains one text object when all its lines use the same font size. Table columns retain their Illustrator Tab anchors and a usable final-column width. Numeric chart scales remain protected, and decimal fragments such as `8` and `.0` are rejoined as `8.0`.
+Exporter 0.8.4 asks you to choose any destination folder available to Illustrator, including nested folders and names containing spaces or Chinese characters. It first tests write access inside that exact folder, then writes a collision-safe package name based on the Illustrator document name. Each package is reopened and checked for non-empty, valid ChartLingo JSON before success is reported. If macOS blocks access, the exporter reports the selected folder, affected output file, filesystem error, and relevant Privacy & Security action. It automatically removes control characters that are invalid in embedded SVG; ChartLingo repeats this cleanup during import so packages from older exporters can also open without manual repair. It separates explicit line breaks and items divided by Tabs, repeated spaces, or full-width spaces into independent ChartLingo text objects. This improves CSV/TXT matching without changing the Illustrator artwork. A multi-line header remains one text object when all its lines use the same font size. Table columns retain their Illustrator Tab anchors and a usable final-column width. Numeric chart scales remain protected, and decimal fragments such as `8` and `.0` are rejoined as `8.0`.
 
 ## 3. Create the CSV or TXT translation file
 
@@ -89,7 +89,7 @@ Rules:
 
 ## 4. Generate the English chart
 
-1. Open [ChartLingoV2](https://yuchej.github.io/ChartLingo/chartlingoV2/).
+1. Open [ChartLingo](https://yuchej.github.io/ChartLingo/chartlingoV2/).
 2. Select **Import .chartlingo File** and upload the `.chartlingo` file.
 3. Select **Import CSV or TXT** and upload the translation file.
 4. The English result generates automatically after both files are loaded.

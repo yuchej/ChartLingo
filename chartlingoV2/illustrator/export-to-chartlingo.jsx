@@ -9,7 +9,7 @@
     return (index + 1) + '. ' + (doc.artboards[index].name || ('Artboard ' + (index + 1))) + ' — ' + width + ' × ' + height;
   }
   function chooseArtboards() {
-    var dialog = new Window('dialog', 'ChartLingoV2 — Export'), group, mode, list, imageMode, imageHelp, preflight, buttons, i, layerNames = [], activeIndex = doc.artboards.getActiveArtboardIndex(), multipleAvailable = doc.artboards.length > 1;
+    var dialog = new Window('dialog', 'ChartLingo — Export'), group, mode, list, imageMode, imageHelp, preflight, buttons, i, layerNames = [], activeIndex = doc.artboards.getActiveArtboardIndex(), multipleAvailable = doc.artboards.length > 1;
     dialog.orientation = 'column'; dialog.alignChildren = ['fill', 'top'];
     dialog.add('statictext', undefined, 'Choose the artboard(s) to export.');
     group = dialog.add('group'); group.add('statictext', undefined, 'Mode:');
@@ -48,7 +48,7 @@
   try { $.global.__chartLingoExportDiagnostics = exportDiagnostics; } catch (_) {}
   var selectedLookup = {}, selectedIndices = exportChoice.indices, selectionIndex;
   for (selectionIndex = 0; selectionIndex < selectedIndices.length; selectionIndex++) selectedLookup[selectedIndices[selectionIndex]] = true;
-  var cancelled = false, progressWindow = new Window('palette', 'ChartLingoV2 Export'), progressText, progressBar, cancelButton;
+  var cancelled = false, progressWindow = new Window('palette', 'ChartLingo Export'), progressText, progressBar, cancelButton;
   progressWindow.orientation = 'column'; progressWindow.alignChildren = ['fill', 'top']; progressText = progressWindow.add('statictext', undefined, 'Preparing selected artboard…');
   progressBar = progressWindow.add('progressbar', undefined, 0, 100); progressBar.preferredSize = [420, 16];
   cancelButton = progressWindow.add('button', undefined, 'Cancel export'); cancelButton.onClick = function () { cancelled = true; progressText.text = 'Cancelling safely…'; progressWindow.update(); };
@@ -440,6 +440,9 @@
   function normalizeAdobeSvgNamespaces(value) {
     return String(value || '').replace(/&ns_extend;/g, 'http://ns.adobe.com/Extensibility/1.0/').replace(/&ns_ai;/g, 'http://ns.adobe.com/AdobeIllustrator/10.0/').replace(/&ns_graphs;/g, 'http://ns.adobe.com/Graphs/1.0/');
   }
+  function stripInvalidXmlCharacters(value) {
+    return String(value || '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '');
+  }
   function readSvg(artboardIndex, optimizedImages) {
     var stem = 'chartlingo-v2-preview-' + new Date().getTime() + '-' + artboardIndex, temporary = new File(Folder.temp.fsName + '/' + stem + '.svg');
     var options = new ExportOptionsSVG();
@@ -461,7 +464,7 @@
     generated.encoding = 'UTF-8'; generated.open('r'); var value = generated.read(); generated.close();
     try { generated.remove(); } catch (_) {}
     try { for (var cleanupIndex = 0; cleanupIndex < matches.length; cleanupIndex++) if (matches[cleanupIndex].exists) matches[cleanupIndex].remove(); } catch (_) {}
-    value = normalizeAdobeSvgNamespaces(value);
+    value = stripInvalidXmlCharacters(normalizeAdobeSvgNamespaces(value));
     return optimizedImages ? value.replace(/>\s+</g, '><') : value;
   }
   function readArtworkWithoutLiveText(artboardIndex, artboardRecord) {
@@ -748,7 +751,7 @@
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.3'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.4'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
   function writePackage(file, data, artboardName) {
     var payload, opened = false, written = false, closed = false, verifiedFile;
@@ -797,7 +800,7 @@
   }
   function errorReport(error) {
     var primaryType = exportDiagnostics.filesWritten ? 'partial_export_failed' : (error.chartLingoType || 'export_failed');
-    var lines = ['ChartLingoV2 export failed.', '', 'Type: ' + primaryType, 'Cause: ' + (error.chartLingoType || 'unknown'), 'Operation: ' + (error.chartLingoOperation || 'export package'), 'Artboard: ' + (error.chartLingoArtboard || 'Not applicable'), '', 'Destination folder:', displayPath(destinationFolder) || '(unresolved)', '', 'Output file:', error.chartLingoFile || '(not created)', '', 'Error:', error.chartLingoUnderlying || error.message || String(error)];
+    var lines = ['ChartLingo export failed.', '', 'Type: ' + primaryType, 'Cause: ' + (error.chartLingoType || 'unknown'), 'Operation: ' + (error.chartLingoOperation || 'export package'), 'Artboard: ' + (error.chartLingoArtboard || 'Not applicable'), '', 'Destination folder:', displayPath(destinationFolder) || '(unresolved)', '', 'Output file:', error.chartLingoFile || '(not created)', '', 'Error:', error.chartLingoUnderlying || error.message || String(error)];
     if (exportDiagnostics.actualFiles.length) lines.push('', 'Files successfully written before the failure:', exportDiagnostics.actualFiles.join('\n'));
     lines.push('', 'Adobe Illustrator may need access under macOS System Settings > Privacy & Security > Files and Folders (or Full Disk Access).', 'Give Illustrator permission to access this folder, or run the exporter again and choose another writable folder.', '', 'The Illustrator document was left unchanged.');
     return lines.join('\n');
@@ -822,11 +825,11 @@
   }
   verifyCompleteExport();
   try { progressWindow.close(); } catch (_) {}
-  alert('ChartLingoV2 export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.8.3\nMode: ' + exportDiagnostics.exportMode + '\nPhoto handling: ' + exportDiagnostics.imageMode + '\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
+  alert('ChartLingo export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.8.4\nMode: ' + exportDiagnostics.exportMode + '\nPhoto handling: ' + exportDiagnostics.imageMode + '\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
   } catch (exportError) {
     try { doc.artboards.setActiveArtboardIndex(initialActiveArtboard); } catch (_) {}
     try { progressWindow.close(); } catch (_) {}
-    if (String(exportError.message || exportError) === '__CHARTLINGO_CANCELLED__') alert('ChartLingoV2 export cancelled. The Illustrator document was restored.');
+    if (String(exportError.message || exportError) === '__CHARTLINGO_CANCELLED__') alert('ChartLingo export cancelled. The Illustrator document was restored.');
     else alert(errorReport(exportError));
   }
 })();

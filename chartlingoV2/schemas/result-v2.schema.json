@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://chartlingo.local/schemas/result-v2.json",
-  "title": "ChartLingoV2 Illustrator result",
+  "title": "ChartLingo Illustrator result",
   "type": "object",
   "required": ["schema", "schemaVersion", "sourceDocument", "artboards", "validation"],
   "properties": {
