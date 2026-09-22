@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ChartLingo</title>
   <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="styles.css?v=20260915-01">
+    <link rel="stylesheet" href="styles.css?v=20260922-01">
 </head>
 <body>
   <header class="topbar">
@@ -61,10 +61,10 @@
               </div>
               <label class="alignment-rotation"><span>Rotation</span><span class="rotation-input"><input id="editRotation" type="number" step="1" aria-label="Rotation in degrees"><span aria-hidden="true">°</span></span></label>
             </section>
-            <details id="contentSection" class="inspector-section" open><summary>Text content</summary><div class="inspector-body"><div class="text-content-row inspector-wide"><label>Text<textarea id="editText" rows="3"></textarea></label><button id="removeSelectedText" class="button danger" type="button">Remove text</button></div><button id="separateTextBox" class="button inspector-wide split-text-button" type="button" hidden title="Separate this text box into CSV-matched text objects">⇥ Separate text box</button></div></details>
+            <details id="contentSection" class="inspector-section" open><summary><span>Text content</span><button id="addText" class="add-text-button" type="button" title="Add a new editable text box">＋ Add text</button></summary><div class="inspector-body"><div class="text-content-row inspector-wide"><label>Text<textarea id="editText" rows="3"></textarea></label><button id="removeSelectedText" class="button danger" type="button">Remove text</button></div><button id="separateTextBox" class="button inspector-wide split-text-button" type="button" hidden title="Separate this text box into CSV-matched text objects">⇥ Separate text box</button></div></details>
             <details id="highlightSection" class="inspector-section" open><summary>Partial text highlight</summary><div class="inspector-body">
               <div id="partialHighlightTools" class="partial-highlight-tools inspector-wide">
-                <div class="partial-highlight-intro"><strong id="partialHighlightTitle">Highlight</strong><small id="partialHighlightHelp">Select characters in the Text field before applying.</small></div>
+                <div class="partial-highlight-intro"><strong id="partialHighlightTitle" hidden></strong><small id="partialHighlightHelp">Select characters in the Text field before applying.</small></div>
                 <div class="highlight-rows">
                   <label class="highlight-row"><span>Fill</span><span class="color-select"><input id="editPartialColor" type="color" value="#e90044"><output id="partialFillValue">#e90044</output><i aria-hidden="true">⌄</i></span></label>
                   <label class="highlight-row"><span>Stroke</span><button id="partialStrokeSwatch" class="stroke-select is-none" type="button" aria-label="Choose selected text stroke color"><input id="editPartialStrokeEnabled" type="checkbox" hidden><input id="editPartialStrokeColor" type="color" value="#111111" tabindex="-1" aria-hidden="true"><b aria-hidden="true"></b><span id="partialStrokeValue">None</span><i aria-hidden="true">⌄</i></button><input id="editPartialStrokeWidth" type="number" min="0.25" step="0.25" value="1" aria-label="Selected text stroke width" disabled></label>
@@ -82,15 +82,15 @@
             </div></details>
             <details id="appearanceSection" class="inspector-section"><summary>Appearance</summary><div class="inspector-body">
               <label>Text fill<input id="editColor" type="color"></label>
-              <label class="toggle-label"><input id="editBorderEnabled" type="checkbox"> Text outline enabled</label><label>Outline color<input id="editBorderColor" type="color"></label>
+              <label>Outline color<input id="editBorderColor" type="color"></label>
               <label>Outline width<input id="editBorderWidth" type="number" min="0" step="0.5"></label><label>Outline style<select id="editBorderStyle"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label>
-              <label>Outline opacity<input id="editBorderOpacity" type="number" min="0" max="1" step="0.05"></label><label>Stroke position<select id="editStrokeAlignment"><option value="center">Center</option><option value="outside">Outside</option></select></label>
+              <label>Outline opacity<input id="editBorderOpacity" type="number" min="0" max="1" step="0.05"></label><label>Stroke position<select id="editStrokeAlignment"><option value="outside">Outside</option><option value="center">Center</option></select></label>
             </div></details>
-            <div hidden aria-hidden="true"><input id="editX" type="number"><input id="editY" type="number"><input id="editWidth" type="number"><input id="editHeight" type="number"><select id="editLineBreakMode"><option value="auto">Auto</option><option value="single-line">Single line</option><option value="manual">Manual</option><option value="match-source">Match source layout</option></select><input id="editBorderRadius"><input id="editBoxFill"><input id="editFillOpacity"></div>
+            <div hidden aria-hidden="true"><input id="editX" type="number"><input id="editY" type="number"><input id="editWidth" type="number"><input id="editHeight" type="number"><select id="editLineBreakMode"><option value="auto">Auto</option><option value="single-line">Single line</option><option value="manual">Manual</option><option value="match-source">Match source layout</option></select><input id="editBorderEnabled" type="checkbox"><input id="editBorderRadius"><input id="editBoxFill"><input id="editFillOpacity"></div>
             <div hidden aria-hidden="true"><button id="inspectorUndo"></button><button id="resetSourceStyle"></button><button id="cancelInspector"></button></div>
           </aside>
           <section class="english-editor-preview">
-            <div class="panel-heading editor-toolbar"><div><span class="eyebrow">Output</span><h2>English graphic</h2></div><div class="preview-actions"><label class="output-size-control">Output size<select id="outputSizeMode" aria-label="Output size"><option value="auto">Auto height</option><option value="fixed">Fixed 1200 × 800</option></select></label><span id="outputDimensions"></span><button id="openEditor" class="button">Edit graphic</button><button id="undoEdit" class="button" disabled>↶ Undo</button><button id="redoEdit" class="button" disabled>↷ Redo</button><button id="resetGenerated" class="button" type="button">Reset</button><button id="dataMismatchWarning" class="button data-mismatch-warning" type="button" hidden>⚠ Data mismatch detected</button><button id="toggleReference" class="button" type="button" aria-pressed="false">Show Chinese reference</button></div></div>
+            <div class="panel-heading editor-toolbar"><div><span class="eyebrow">Output</span><h2>English graphic</h2></div><div class="preview-actions"><label class="output-size-control">Output size<select id="outputSizeMode" aria-label="Output size"><option value="auto">Auto height</option><option value="fixed">Fixed 1200 × 800</option></select></label><button id="addAiDisclaimer" class="button" type="button">Add AI disclaimer</button><span id="outputDimensions" hidden></span><button id="openEditor" class="button">Edit graphic</button><div id="previewZoomControls" class="preview-zoom-controls" role="toolbar" aria-label="Preview zoom"><button id="previewZoomOut" class="button zoom-icon" type="button" title="Zoom out (−)" aria-label="Zoom out">−</button><label class="preview-zoom-value" title="Enter a zoom level from 10% to 400%"><span class="sr-only">Preview zoom percentage</span><input id="previewZoomPercent" type="number" min="10" max="400" step="10" value="100" inputmode="numeric" aria-label="Preview zoom percentage"><span>%</span></label><button id="previewZoomIn" class="button zoom-icon" type="button" title="Zoom in (+)" aria-label="Zoom in">+</button><button id="previewZoomFit" class="button" type="button" title="Fit the complete artwork in the preview">Fit</button></div><button id="undoEdit" class="button" disabled>↶ Undo</button><button id="redoEdit" class="button" disabled>↷ Redo</button><button id="resetGenerated" class="button" type="button">Reset</button><button id="dataMismatchWarning" class="button data-mismatch-warning" type="button" hidden>⚠ Data mismatch detected</button><button id="toggleReference" class="button" type="button" aria-pressed="false">Show Chinese reference</button></div></div>
             <div id="outputCanvas" class="canvas-host" tabindex="0" title="English graphic preview"><div class="panel-placeholder"><strong>English preview</strong><span>Upload files and generate English</span></div></div>
           </section>
         </section>
@@ -126,11 +126,12 @@
         <div><strong>Detected issue</strong><p id="mismatchReason"></p></div>
         <div><strong id="mismatchProposalTitle">Detected content</strong><div id="mismatchSplitRows" class="mismatch-split-rows"></div><div id="mismatchUnmatched" class="mismatch-unmatched" hidden></div></div>
       </div>
-      <div id="mismatchChecklist" class="mismatch-checklist" hidden><div class="mismatch-checklist-heading"><div><strong>Review mismatch groups</strong><p>Related ChartLingo and CSV items are grouped together. Choose whether to match the CSV structure or keep the ChartLingo format.</p></div><span id="mismatchChecklistCount"></span></div><div id="mismatchChecklistRows" class="mismatch-checklist-rows"></div></div>
+      <div id="mismatchChecklist" class="mismatch-checklist" hidden><div class="mismatch-selection-toolbar"><label><input id="mismatchSelectAll" type="checkbox"> Select all</label><strong id="mismatchSelectionCount" aria-live="polite">0 of 0 selected</strong></div><div id="mismatchChecklistRows" class="mismatch-checklist-rows"></div></div>
       <div class="mismatch-actions"><button id="confirmSeparation" class="button primary" type="button">Apply separation and match all fields</button><button id="editMismatchMapping" class="button" type="button" hidden>Adjust split manually</button><button id="keepCombined" class="button" type="button" hidden>Keep as one text box</button><button id="ignoreMismatch" class="button" type="button">Ignore warning</button><button id="cancelMismatch" class="button" type="button">Cancel</button></div>
+      <div id="structuralMismatchConfirm" class="structural-confirm" role="alertdialog" aria-modal="true" aria-labelledby="structuralConfirmTitle" hidden><div><span class="eyebrow">Structural change</span><h3 id="structuralConfirmTitle">Confirm text-box structure changes</h3><p id="structuralConfirmMessage"></p><div class="structural-confirm-actions"><button id="cancelStructuralChanges" class="button" type="button">Go back</button><button id="continueStructuralChanges" class="button primary" type="button">Continue and apply</button></div></div></div>
     </div>
   </section>
     <script src="core.js?v=20260922-01"></script>
-    <script src="app.js?v=20260922-01"></script>
+    <script src="app.js?v=20260922-12"></script>
 </body>
 </html>

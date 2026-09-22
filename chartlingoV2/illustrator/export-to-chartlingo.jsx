@@ -19,16 +19,16 @@
     for (i = 0; i < doc.artboards.length; i++) list.add('item', artboardLabel(i));
     list.selection = list.items[activeIndex]; list.enabled = false;
     group = dialog.add('group'); group.add('statictext', undefined, 'Photo handling:');
-    imageMode = group.add('dropdownlist', undefined, ['Optimized (recommended)', 'High quality']); imageMode.selection = 0;
-    imageHelp = dialog.add('statictext', undefined, 'Optimized stores photos once at screen-ready resolution, avoids Illustrator edit metadata, and rebuilds the Chinese preview from text metadata. This reduces package size, memory use, and export time.', {multiline: true}); imageHelp.preferredSize = [520, 42];
+    imageMode = group.add('dropdownlist', undefined, ['Editable vectors + embedded photo (recommended)', 'High quality']); imageMode.selection = 0;
+    imageHelp = dialog.add('statictext', undefined, 'Embeds each photo inside editable SVG artwork while keeping lines, shapes, logos, and other vector elements editable. The Chinese preview is rebuilt from text metadata.', {multiline: true}); imageHelp.preferredSize = [520, 42];
     for (i = 0; i < doc.layers.length; i++) layerNames.push(doc.layers[i].name);
     preflight = dialog.add('statictext', undefined, 'Preflight: ' + doc.pageItems.length + ' page items · ' + doc.textFrames.length + ' text frames · ' + doc.pathItems.length + ' paths · ' + doc.groupItems.length + ' groups · ' + doc.placedItems.length + ' linked/placed items\nLayers: ' + layerNames.join(', '), {multiline: true});
     preflight.preferredSize = [520, 48];
     if (doc.pageItems.length > 5000 || doc.groupItems.length > 1000 || doc.placedItems.length > 20) {
-      var warning = dialog.add('statictext', undefined, 'Large/complex document detected. Use Optimized photo handling and export only the artboards you need.', {multiline: true}); warning.graphics.foregroundColor = warning.graphics.newPen(warning.graphics.PenType.SOLID_COLOR, [0.75, 0.25, 0.05], 1);
+      var warning = dialog.add('statictext', undefined, 'Large/complex document detected. Use the recommended embedded-photo mode and export only the artboards you need.', {multiline: true}); warning.graphics.foregroundColor = warning.graphics.newPen(warning.graphics.PenType.SOLID_COLOR, [0.75, 0.25, 0.05], 1);
     }
     mode.onChange = function () { list.enabled = multipleAvailable && mode.selection.index === 1; if (!list.enabled) list.selection = list.items[activeIndex]; };
-    imageMode.onChange = function () { imageHelp.text = imageMode.selection.index === 0 ? 'Optimized stores photos once at screen-ready resolution, avoids Illustrator edit metadata, and rebuilds the Chinese preview from text metadata. This reduces package size, memory use, and export time.' : 'High quality stores both complete SVG previews. Use it only when file size and export speed are not a concern.'; };
+    imageMode.onChange = function () { imageHelp.text = imageMode.selection.index === 0 ? 'Embeds each photo inside editable SVG artwork while keeping lines, shapes, logos, and other vector elements editable. The Chinese preview is rebuilt from text metadata.' : 'High quality also stores a complete Chinese SVG preview. Photos stay embedded and vectors remain editable, but the package is larger.'; };
     buttons = dialog.add('group'); buttons.alignment = 'right'; buttons.add('button', undefined, 'Cancel', {name: 'cancel'}); buttons.add('button', undefined, 'Continue', {name: 'ok'});
     if (dialog.show() !== 1) return null;
     var indices = [], selectedItems = list.selection instanceof Array ? list.selection : (list.selection ? [list.selection] : []);
@@ -467,6 +467,20 @@
     value = stripInvalidXmlCharacters(normalizeAdobeSvgNamespaces(value));
     return optimizedImages ? value.replace(/>\s+</g, '><') : value;
   }
+  function invalidSvgImageReason(value, expectedImages) {
+    var source = String(value || ''), tagPattern = /<image\b[^>]*>/gi, hrefPattern = /(?:href|xlink:href)\s*=\s*["']([^"']*)["']/i, tag, href, payload, imageCount = 0;
+    while ((tag = tagPattern.exec(source))) {
+      imageCount++;
+      href = hrefPattern.exec(tag[0]); href = href ? String(href[1] || '').replace(/^\s+|\s+$/g, '') : '';
+      if (!href || /^(?:undefined|null)$/i.test(href)) return 'Image ' + imageCount + ' has an empty or invalid href.';
+      if (!/^data:image\/(?:jpeg|png|webp);base64,/i.test(href)) return 'Image ' + imageCount + ' is still linked to an external file instead of embedded.';
+      payload = href.substring(href.indexOf(',') + 1).replace(/\s+/g, '');
+      if (payload.length < 16 || /[^A-Za-z0-9+\/=]/.test(payload)) return 'Image ' + imageCount + ' has invalid embedded base64 data.';
+      if (!/\bwidth\s*=\s*["'][^"']*[1-9][^"']*["']/i.test(tag[0]) || !/\bheight\s*=\s*["'][^"']*[1-9][^"']*["']/i.test(tag[0])) return 'Image ' + imageCount + ' has invalid dimensions.';
+    }
+    if (Number(expectedImages || 0) > 0 && imageCount === 0) return 'The SVG contains no image element for ' + expectedImages + ' detected raster image(s).';
+    return null;
+  }
   function readArtworkWithoutLiveText(artboardIndex, artboardRecord) {
     var states = [], value = '', i, frameIndex, seen = {};
     for (i = 0; i < artboardRecord.textFrames.length; i++) {
@@ -485,43 +499,6 @@
     }
     return value;
   }
-  function base64Binary(value) {
-    var alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', output = '', i, a, b, c;
-    for (i = 0; i < value.length; i += 3) {
-      a = value.charCodeAt(i) & 255; b = i + 1 < value.length ? value.charCodeAt(i + 1) & 255 : NaN; c = i + 2 < value.length ? value.charCodeAt(i + 2) & 255 : NaN;
-      output += alphabet.charAt(a >> 2) + alphabet.charAt(((a & 3) << 4) | (isNaN(b) ? 0 : b >> 4));
-      output += isNaN(b) ? '=' : alphabet.charAt(((b & 15) << 2) | (isNaN(c) ? 0 : c >> 6));
-      output += isNaN(c) ? '=' : alphabet.charAt(c & 63);
-    }
-    return output;
-  }
-  function readScreenArtworkWithoutLiveText(artboardIndex, artboardRecord) {
-    var states = [], value = '', i, frameIndex, seen = {}, rect = doc.artboards[artboardIndex].artboardRect, width = rect[2] - rect[0], height = rect[1] - rect[3], longest = Math.max(width, height), scale = Math.max(100, Math.min(400, 160000 / Math.max(1, longest)));
-    var stem = 'chartlingo-v2-photo-' + new Date().getTime() + '-' + artboardIndex, temporary = new File(Folder.temp.fsName + '/' + stem + '.jpg'), options = new ExportOptionsJPEG(), generated = temporary, matches = [];
-    for (i = 0; i < artboardRecord.textFrames.length; i++) {
-      frameIndex = artboardRecord.textFrames[i].illustrator.textFrameIndex;
-      if (seen[frameIndex]) continue; seen[frameIndex] = true;
-      states.push({index: frameIndex, hidden: doc.textFrames[frameIndex].hidden, opacity: doc.textFrames[frameIndex].opacity});
-      try { doc.textFrames[frameIndex].opacity = 0; } catch (_) {}
-      try { doc.textFrames[frameIndex].hidden = true; } catch (_) {}
-    }
-    try {
-      options.artBoardClipping = true; options.antiAliasing = true; options.qualitySetting = 70; options.horizontalScale = scale; options.verticalScale = scale; options.optimization = true;
-      doc.artboards.setActiveArtboardIndex(artboardIndex); doc.exportFile(temporary, ExportType.JPEG, options);
-      if (!generated.exists) { try { matches = Folder.temp.getFiles(stem + '*.jpg'); } catch (_) {} if (matches.length) generated = matches[0]; }
-      if (!generated.exists) throw new Error('Illustrator did not create the optimized photo preview for artboard ' + (artboardIndex + 1) + '.');
-      generated.encoding = 'BINARY'; generated.open('r'); value = base64Binary(generated.read()); generated.close();
-    } finally {
-      for (i = 0; i < states.length; i++) {
-        try { doc.textFrames[states[i].index].opacity = states[i].opacity; } catch (_) {}
-        try { doc.textFrames[states[i].index].hidden = states[i].hidden; } catch (_) {}
-      }
-      try { if (generated.exists) generated.remove(); } catch (_) {}
-      try { for (i = 0; i < matches.length; i++) if (matches[i].exists) matches[i].remove(); } catch (_) {}
-    }
-    return '<svg xmlns="http://www.w3.org/2000/svg" data-chartlingo-flattened-artwork="true" viewBox="0 0 ' + width + ' ' + height + '"><image x="0" y="0" width="' + width + '" height="' + height + '" preserveAspectRatio="none" href="data:image/jpeg;base64,' + value + '"/></svg>';
-  }
-
   function logoBoundsForArtboard(artboardIndex) {
     var rect = doc.artboards[artboardIndex].artboardRect, boardWidth = rect[2] - rect[0], boardHeight = rect[1] - rect[3];
     var collections = [], best = null, bestScore = -1, c, i, item, bounds, box, centerX, centerY, aspect, hint, named, score;
@@ -742,16 +719,21 @@
   try { for (i = 0; i < doc.groupItems.length; i++) if (/outline|outlined/i.test(doc.groupItems[i].name)) outlinedCount++; } catch (_) {}
   var previousActiveArtboard = doc.artboards.getActiveArtboardIndex();
   for (i = 0; i < artboards.length; i++) {
+    var imageValidationError = null;
     if (exportChoice.imageMode === 'high-quality') {
       progress('Rendering full Chinese preview', i, artboards.length * 2, artboards[i].name);
       artboards[i].previewSvg = readSvg(artboards[i].index, false);
+      if (invalidSvgImageReason(artboards[i].previewSvg, artboards[i].imageObjects.length)) artboards[i].previewSvg = null;
     } else artboards[i].previewSvg = null;
-    progress(exportChoice.imageMode === 'optimized' ? 'Embedding optimized artwork once' : 'Rendering artwork', exportChoice.imageMode === 'optimized' ? i + 1 : artboards.length + i, exportChoice.imageMode === 'optimized' ? artboards.length : artboards.length * 2, artboards[i].name);
-    artboards[i].artworkSvg = exportChoice.imageMode === 'optimized' && artboards[i].imageObjects.length ? readScreenArtworkWithoutLiveText(artboards[i].index, artboards[i]) : readArtworkWithoutLiveText(artboards[i].index, artboards[i]);
+    progress(exportChoice.imageMode === 'optimized' ? 'Embedding photos and preserving vectors' : 'Rendering editable artwork', exportChoice.imageMode === 'optimized' ? i + 1 : artboards.length + i, exportChoice.imageMode === 'optimized' ? artboards.length : artboards.length * 2, artboards[i].name);
+    artboards[i].artworkSvg = readArtworkWithoutLiveText(artboards[i].index, artboards[i]);
+    imageValidationError = invalidSvgImageReason(artboards[i].artworkSvg, artboards[i].imageObjects.length);
+    if (imageValidationError) throw new Error('Image export failed on ' + artboards[i].name + ': ' + imageValidationError + ' Re-embed the linked image in Illustrator and export again. Vector artwork was not flattened.');
+    artboards[i].imageExportDiagnostics = {chartId: artboards[i].id, imageCount: artboards[i].imageObjects.length, sourceType: artboards[i].imageObjects.length ? 'embedded-data-uri' : 'none', sourceIsValid: true, embedded: true, illustratorCompatible: true, vectorsPreserved: true, textPreservedSeparately: true, usedRasterFallback: false};
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.4'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.6'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
   function writePackage(file, data, artboardName) {
     var payload, opened = false, written = false, closed = false, verifiedFile;
@@ -825,7 +807,7 @@
   }
   verifyCompleteExport();
   try { progressWindow.close(); } catch (_) {}
-  alert('ChartLingo export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.8.4\nMode: ' + exportDiagnostics.exportMode + '\nPhoto handling: ' + exportDiagnostics.imageMode + '\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
+  alert('ChartLingo export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.8.6\nMode: ' + exportDiagnostics.exportMode + '\nPhoto handling: embedded image; vectors preserved\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
   } catch (exportError) {
     try { doc.artboards.setActiveArtboardIndex(initialActiveArtboard); } catch (_) {}
     try { progressWindow.close(); } catch (_) {}
