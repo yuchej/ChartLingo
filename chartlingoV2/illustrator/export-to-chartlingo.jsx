@@ -557,6 +557,18 @@
     try { scanSize = Number(scanFrame.textRange.characterAttributes.size) || 0; } catch (_) {}
     if (scanSize > (topHeaderSizes[scanBoard] || 0)) topHeaderSizes[scanBoard] = scanSize;
   }
+  function numericFontWeight(styleName) {
+    var value = String(styleName || '').replace(/[\s_-]+/g, '').toLowerCase();
+    if (/thin/.test(value)) return 100;
+    if (/extralight|ultralight/.test(value)) return 200;
+    if (/light/.test(value)) return 300;
+    if (/medium/.test(value)) return 500;
+    if (/semibold|demibold/.test(value)) return 600;
+    if (/extrabold|ultrabold|heavy/.test(value)) return 800;
+    if (/black/.test(value)) return 900;
+    if (/bold/.test(value)) return 700;
+    return 400;
+  }
   var outlinedCount = 0;
   for (i = 0; i < doc.textFrames.length; i++) {
     progress('Scanning text', i, doc.textFrames.length, selectedIndices.length === 1 ? doc.artboards[selectedIndices[0]].name : 'selected artboards');
@@ -567,11 +579,11 @@
     var boardRecord = artboardsByIndex[boardIndex], boardRect = doc.artboards[boardIndex].artboardRect, box = localBounds(bounds, boardRect), textIndex = counters[boardIndex]++, baseId = frameId(boardIndex, textIndex);
     boardRecord.objectCount++;
     try { addLayer(boardRecord, frame.layer.name); } catch (_) {}
-    var size = 14, leading = 0, family = 'sans-serif', fill = '#14283f', justify = 'left', fontWeight = 400, fontStyleName = '';
+    var size = 14, leading = 0, family = 'Noto Sans SC', fill = '#14283f', justify = 'left', fontWeight = 400, fontStyleName = '';
     try { size = frame.textRange.characterAttributes.size || size; } catch (_) {}
     try { leading = frame.textRange.characterAttributes.leading || size * 1.2; } catch (_) { leading = size * 1.2; }
     try { family = frame.textRange.characterAttributes.textFont.family || frame.textRange.characterAttributes.textFont.name; } catch (_) {}
-    try { fontStyleName = frame.textRange.characterAttributes.textFont.style || ''; if (/bold|black|heavy|semibold|demi/i.test(fontStyleName)) fontWeight = 700; } catch (_) {}
+    try { fontStyleName = frame.textRange.characterAttributes.textFont.style || ''; fontWeight = numericFontWeight(fontStyleName); } catch (_) {}
     try { fill = colorHex(frame.textRange.characterAttributes.fillColor); } catch (_) {}
     try { justify = alignment(frame.paragraphs[0].paragraphAttributes.justification); } catch (_) {}
     var axisLabels = pairedAxisLabels(frame), credits = creditLines(frame), rows = tableRows(frame), isUniformHeader = box.y <= boardRecord.bounds.height * 0.25 && size >= (topHeaderSizes[boardIndex] || size) - 0.01 && hasUniformLineFontSize(frame), rowIndex, columnIndex, maxColumns = 0, columns, rowHeight, cell, cellBox, groupId, fieldType, itemId;
@@ -733,7 +745,7 @@
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.6'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.7'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
   function writePackage(file, data, artboardName) {
     var payload, opened = false, written = false, closed = false, verifiedFile;
@@ -807,7 +819,7 @@
   }
   verifyCompleteExport();
   try { progressWindow.close(); } catch (_) {}
-  alert('ChartLingo export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.8.6\nMode: ' + exportDiagnostics.exportMode + '\nPhoto handling: embedded image; vectors preserved\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
+  alert('ChartLingo export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.8.7\nMode: ' + exportDiagnostics.exportMode + '\nPhoto handling: embedded image; vectors preserved\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
   } catch (exportError) {
     try { doc.artboards.setActiveArtboardIndex(initialActiveArtboard); } catch (_) {}
     try { progressWindow.close(); } catch (_) {}
