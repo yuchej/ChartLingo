@@ -118,6 +118,7 @@ Check:
 - **Export SVG** for vector output.
 - SVG output includes an Illustrator-compatible SVG 1.1 XML declaration, Adobe namespace entity declarations, direct namespace URLs, and a final XML validation pass before saving.
 - **Export PNG** for image output.
+- Every SVG, PNG, or JPEG export opens the system save window. Confirm the destination and filename, then click **Save**; cancelling the window cancels that export.
 - Review the exported file before publishing.
 
 ## Report a problem

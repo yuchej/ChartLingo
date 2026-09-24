@@ -99,17 +99,20 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("vectorsPreserved: true", exporter)
         self.assertIn("usedRasterFallback: false", exporter)
 
-    def test_browser_exports_offer_a_system_save_location_with_download_fallback(self):
+    def test_browser_exports_require_a_system_save_confirmation(self):
         app = (ROOT / "app.js").read_text()
         self.assertIn("window.showSaveFilePicker", app)
         self.assertIn("function chooseExportDestination", app)
         self.assertIn("function saveExport", app)
         self.assertIn("if(error?.name==='AbortError')", app)
-        self.assertIn("download(name,blob)", app)
+        self.assertNotIn("function download", app)
+        self.assertIn("unsupported:true", app)
+        self.assertIn("The export was not created", app)
         self.assertIn("id:'chartlingo-export-location'", app)
-        self.assertIn("window.showDirectoryPicker", app)
-        self.assertIn("exportDirectoryHandle:null", app)
-        self.assertIn("destination.directory.getFileHandle(name,{create:true})", app)
+        self.assertNotIn("window.showDirectoryPicker", app)
+        self.assertNotIn("exportDirectoryHandle", app)
+        self.assertNotIn("destination.directory.getFileHandle", app)
+        self.assertEqual(app.count("window.showSaveFilePicker"), 2)
         self.assertNotIn('id="changeExportFolder"', (ROOT / "index.html").read_text())
         for extension in ["svg", "png", "jpg"]:
             self.assertIn(f"chooseExportDestination(name,'{extension}')", app)
@@ -674,7 +677,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("ensureDefaultFooter(artboard,list,spec)", app)
         self.assertIn("(?:zaobao|lhzb)", app)
         self.assertIn('core.js?v=20260922-02', index)
-        self.assertIn('app.js?v=20260923-30', index)
+        self.assertIn('app.js?v=20260924-31', index)
 
     def test_ai_disclaimer_can_be_added_from_output_toolbar(self):
         index = (ROOT / "index.html").read_text()
@@ -764,7 +767,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertNotIn("savedText = verifiedFile.read()", exporter)
         self.assertIn("const artwork=board.artworkSvg", app)
         self.assertIn("background}${texts}", app)
-        self.assertIn('app.js?v=20260923-30', index)
+        self.assertIn('app.js?v=20260924-31', index)
 
     def test_editor_can_add_a_manual_editable_text_box(self):
         index = (ROOT / "index.html").read_text()
@@ -873,7 +876,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertGreaterEqual(app.count("await maybeAutoGenerate()"), 2)
         self.assertIn("generationInProgress", app)
         self.assertNotIn("$('generate')", app)
-        self.assertIn('app.js?v=20260923-30', index)
+        self.assertIn('app.js?v=20260924-31', index)
 
     def test_illustrator_tab_tables_export_as_independent_cells(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
