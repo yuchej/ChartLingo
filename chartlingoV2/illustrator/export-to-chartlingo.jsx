@@ -20,7 +20,7 @@
     list.selection = list.items[activeIndex]; list.enabled = false;
     group = dialog.add('group'); group.add('statictext', undefined, 'Photo handling:');
     imageMode = group.add('dropdownlist', undefined, ['Editable vectors + embedded photo (recommended)', 'High quality']); imageMode.selection = 0;
-    imageHelp = dialog.add('statictext', undefined, 'Embeds each photo inside editable SVG artwork while keeping lines, shapes, logos, and other vector elements editable. The Chinese preview is rebuilt from text metadata.', {multiline: true}); imageHelp.preferredSize = [520, 42];
+    imageHelp = dialog.add('statictext', undefined, 'Flattens each displayed photo and its crop to a JPEG at 100 PPI and quality 80. Pixel dimensions follow the displayed graphic size while surrounding vectors remain editable.', {multiline: true}); imageHelp.preferredSize = [520, 42];
     for (i = 0; i < doc.layers.length; i++) layerNames.push(doc.layers[i].name);
     preflight = dialog.add('statictext', undefined, 'Preflight: ' + doc.pageItems.length + ' page items · ' + doc.textFrames.length + ' text frames · ' + doc.pathItems.length + ' paths · ' + doc.groupItems.length + ' groups · ' + doc.placedItems.length + ' linked/placed items\nLayers: ' + layerNames.join(', '), {multiline: true});
     preflight.preferredSize = [520, 48];
@@ -28,7 +28,7 @@
       var warning = dialog.add('statictext', undefined, 'Large/complex document detected. Use the recommended embedded-photo mode and export only the artboards you need.', {multiline: true}); warning.graphics.foregroundColor = warning.graphics.newPen(warning.graphics.PenType.SOLID_COLOR, [0.75, 0.25, 0.05], 1);
     }
     mode.onChange = function () { list.enabled = multipleAvailable && mode.selection.index === 1; if (!list.enabled) list.selection = list.items[activeIndex]; };
-    imageMode.onChange = function () { imageHelp.text = imageMode.selection.index === 0 ? 'Embeds each photo inside editable SVG artwork while keeping lines, shapes, logos, and other vector elements editable. The Chinese preview is rebuilt from text metadata.' : 'High quality also stores a complete Chinese SVG preview. Photos stay embedded and vectors remain editable, but the package is larger.'; };
+    imageMode.onChange = function () { imageHelp.text = imageMode.selection.index === 0 ? 'Flattens each displayed photo and its crop to a JPEG at 100 PPI and quality 80. Pixel dimensions follow the displayed graphic size while surrounding vectors remain editable.' : 'High quality also stores a complete Chinese SVG preview. Original-resolution photos stay embedded and vectors remain editable, but the package is larger.'; };
     buttons = dialog.add('group'); buttons.alignment = 'right'; buttons.add('button', undefined, 'Cancel', {name: 'cancel'}); buttons.add('button', undefined, 'Continue', {name: 'ok'});
     if (dialog.show() !== 1) return null;
     var indices = [], selectedItems = list.selection instanceof Array ? list.selection : (list.selection ? [list.selection] : []);
@@ -63,6 +63,10 @@
   var initialActiveArtboard = doc.artboards.getActiveArtboardIndex();
   try {
 
+  var OPTIMIZED_IMAGE_PPI = 100;
+  var OPTIMIZED_JPEG_QUALITY = 80;
+  var imageOptimizationStats = {};
+
   function jsonQuote(value) {
     var escapes = {'"': '\\"', '\\': '\\\\', '\b': '\\b', '\f': '\\f', '\n': '\\n', '\r': '\\r', '\t': '\\t'};
     return '"' + String(value).replace(/["\\\x00-\x1f\x7f-\x9f]/g, function (character) {
@@ -82,12 +86,14 @@
     for (i = 0; i < level; i++) current += indent;
     next = current + indent;
     if (value instanceof Array) {
-      for (i = 0; i < value.length; i++) parts.push(next + jsonStringify(value[i], indent, level + 1));
-      return parts.length ? '[\n' + parts.join(',\n') + '\n' + current + ']' : '[]';
+      for (i = 0; i < value.length; i++) parts.push((indent ? next : '') + jsonStringify(value[i], indent, level + 1));
+      if (!parts.length) return '[]';
+      return indent ? '[\n' + parts.join(',\n') + '\n' + current + ']' : '[' + parts.join(',') + ']';
     }
     if (type === 'object') {
-      for (key in value) if (value.hasOwnProperty(key) && typeof value[key] !== 'undefined' && typeof value[key] !== 'function') parts.push(next + jsonQuote(key) + ': ' + jsonStringify(value[key], indent, level + 1));
-      return parts.length ? '{\n' + parts.join(',\n') + '\n' + current + '}' : '{}';
+      for (key in value) if (value.hasOwnProperty(key) && typeof value[key] !== 'undefined' && typeof value[key] !== 'function') parts.push((indent ? next : '') + jsonQuote(key) + (indent ? ': ' : ':') + jsonStringify(value[key], indent, level + 1));
+      if (!parts.length) return '{}';
+      return indent ? '{\n' + parts.join(',\n') + '\n' + current + '}' : '{' + parts.join(',') + '}';
     }
     return 'null';
   }
@@ -443,8 +449,289 @@
   function stripInvalidXmlCharacters(value) {
     return String(value || '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '');
   }
+  function readBinaryFile(file) {
+    var value = '', opened = false;
+    try {
+      file.encoding = 'BINARY'; opened = file.open('r');
+      if (!opened) throw new Error(file.error || 'Could not open raster file.');
+      value = file.read(); file.close(); opened = false;
+      return value;
+    } finally { if (opened) try { file.close(); } catch (_) {} }
+  }
+  function writeBinaryFile(file, value) {
+    var opened = false;
+    try {
+      file.encoding = 'BINARY'; opened = file.open('w');
+      if (!opened) throw new Error(file.error || 'Could not create temporary raster file.');
+      if (!file.write(value)) throw new Error(file.error || 'Could not write temporary raster file.');
+      file.close(); opened = false;
+    } finally { if (opened) try { file.close(); } catch (_) {} }
+  }
+  function base64Decode(value) {
+    var alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', cleanValue = String(value || '').replace(/[^A-Za-z0-9+\/=]/g, ''), output = [], i, a, b, c, d, triplet;
+    for (i = 0; i < cleanValue.length; i += 4) {
+      a = alphabet.indexOf(cleanValue.charAt(i)); b = alphabet.indexOf(cleanValue.charAt(i + 1));
+      c = cleanValue.charAt(i + 2) === '=' ? -1 : alphabet.indexOf(cleanValue.charAt(i + 2));
+      d = cleanValue.charAt(i + 3) === '=' ? -1 : alphabet.indexOf(cleanValue.charAt(i + 3));
+      if (a < 0 || b < 0) continue;
+      triplet = (a << 18) | (b << 12) | ((c < 0 ? 0 : c) << 6) | (d < 0 ? 0 : d);
+      output.push(String.fromCharCode((triplet >> 16) & 255));
+      if (c >= 0) output.push(String.fromCharCode((triplet >> 8) & 255));
+      if (d >= 0) output.push(String.fromCharCode(triplet & 255));
+    }
+    return output.join('');
+  }
+  function base64Encode(value) {
+    var alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', output = [], i, a, b, c, triplet;
+    for (i = 0; i < value.length; i += 3) {
+      a = value.charCodeAt(i) & 255; b = i + 1 < value.length ? value.charCodeAt(i + 1) & 255 : -1; c = i + 2 < value.length ? value.charCodeAt(i + 2) & 255 : -1;
+      triplet = (a << 16) | ((b < 0 ? 0 : b) << 8) | (c < 0 ? 0 : c);
+      output.push(alphabet.charAt((triplet >> 18) & 63), alphabet.charAt((triplet >> 12) & 63), b < 0 ? '=' : alphabet.charAt((triplet >> 6) & 63), c < 0 ? '=' : alphabet.charAt(triplet & 63));
+    }
+    return output.join('');
+  }
+  function pngNeedsTransparency(binary) {
+    var colorType;
+    if (!binary || binary.length < 29 || binary.substring(1, 4) !== 'PNG') return false;
+    colorType = binary.charCodeAt(25) & 255;
+    return colorType === 4 || colorType === 6 || binary.indexOf('tRNS') >= 0;
+  }
+  function svgNumberAttribute(tag, name) {
+    var pattern = new RegExp("\\b" + name + "\\s*=\\s*[\"']([^\"']+)[\"']", 'i'), match = pattern.exec(tag), value;
+    if (!match) return 0;
+    value = parseFloat(String(match[1]).replace(/[^0-9eE+\-.]/g, ''));
+    return isFinite(value) ? Math.abs(value) : 0;
+  }
+  function svgImageScale(tag) {
+    var match = /\btransform\s*=\s*["'][^"']*matrix\s*\(\s*([+\-0-9.eE]+)[ ,]+([+\-0-9.eE]+)[ ,]+([+\-0-9.eE]+)[ ,]+([+\-0-9.eE]+)/i.exec(tag), scaleX = 1, scaleY = 1;
+    if (match) {
+      scaleX = Math.sqrt(Number(match[1]) * Number(match[1]) + Number(match[2]) * Number(match[2])) || 1;
+      scaleY = Math.sqrt(Number(match[3]) * Number(match[3]) + Number(match[4]) * Number(match[4])) || 1;
+    }
+    return {x: scaleX, y: scaleY};
+  }
+  function svgImageHref(tag) {
+    var pattern = /(^|\s)(xlink:href|href)\s*=\s*(["'])([^"']*)\3/ig, match, value, fallback = null, rejected = null;
+    while ((match = pattern.exec(tag))) {
+      value = String(match[4] || '').replace(/^\s+|\s+$/g, '');
+      if (!value || /^(?:visible|hidden|inherit|auto|none)$/i.test(value)) { if (!rejected) rejected = {index: match.index, length: match[0].length, leading: match[1], name: match[2], quote: match[3], value: value, invalid: true}; continue; }
+      if (!fallback) fallback = {index: match.index, length: match[0].length, leading: match[1], name: match[2], quote: match[3], value: value};
+      if (/^data:image\//i.test(value) || /^file:/i.test(value) || /[\/.](?:jpe?g|png|gif|tiff?|psd|bmp|webp)(?:[?#].*)?$/i.test(value)) return {index: match.index, length: match[0].length, leading: match[1], name: match[2], quote: match[3], value: value};
+    }
+    return fallback || rejected;
+  }
+  function temporaryRasterFiles(folder, output) {
+    var entries = [], i, name;
+    output = output || [];
+    try { entries = folder.getFiles(); } catch (_) { entries = []; }
+    for (i = 0; i < entries.length; i++) {
+      if (entries[i] instanceof Folder) temporaryRasterFiles(entries[i], output);
+      else {
+        name = String(entries[i].name || '').toLowerCase();
+        if (/\.(?:jpe?g|png|gif|tiff?|psd|bmp|webp)$/.test(name) && !/^optimized-/.test(name) && !/^embedded-source-/.test(name)) output.push(entries[i]);
+      }
+    }
+    output.sort(function (a, b) { return String(a.fsName).localeCompare(String(b.fsName)); });
+    return output;
+  }
+  function originalPlacedImageFile(artboardIndex, imageNumber) {
+    var record, item, file;
+    try {
+      record = artboardsByIndex[artboardIndex].imageObjects[imageNumber - 1];
+      if (!record || record.illustrator.typename !== 'PlacedItem') return null;
+      item = doc.placedItems[record.illustrator.itemIndex]; file = item.file;
+      return file && file.exists ? file : null;
+    } catch (_) { return null; }
+  }
+  function decodedImageFile(href, temporaryFolder, imageNumber) {
+    var dataMatch = /^data:image\/(jpeg|jpg|png);base64,([\s\S]+)$/i.exec(href), extension, file, decoded, path;
+    if (dataMatch) {
+      extension = /png/i.test(dataMatch[1]) ? 'png' : 'jpg'; file = new File(temporaryFolder.fsName + '/embedded-source-' + imageNumber + '.' + extension);
+      decoded = base64Decode(dataMatch[2]); writeBinaryFile(file, decoded);
+      return {file: file, binary: decoded, temporary: true, extension: extension};
+    }
+    path = String(href || '').replace(/&amp;/g, '&').replace(/^file:\/\//i, '');
+    try { path = File.decode(path); } catch (_) {}
+    file = /^\/?[A-Za-z]:[\/\\]|^\//.test(path) ? new File(path) : new File(temporaryFolder.fsName + '/' + path);
+    if (!file.exists) throw new Error('Illustrator created an unreadable temporary raster reference: ' + href);
+    extension = String(file.name || '').toLowerCase().replace(/^.*\./, '');
+    decoded = readBinaryFile(file);
+    return {file: file, binary: decoded, temporary: false, extension: extension};
+  }
+  function removeTemporaryTree(folder) {
+    var entries = [], i;
+    if (!folder || !folder.exists) return;
+    try { entries = folder.getFiles(); } catch (_) { entries = []; }
+    for (i = 0; i < entries.length; i++) {
+      try { if (entries[i] instanceof Folder) removeTemporaryTree(entries[i]); else if (entries[i].exists) entries[i].remove(); } catch (_) {}
+    }
+    try { folder.remove(); } catch (_) {}
+  }
+  function resampleImage(source, targetWidth, targetHeight, preserveTransparency, temporaryFolder, imageNumber, artboardName) {
+    var imageDocument = null, outputFile = null, pageItem = null, bounds, sourceWidth, sourceHeight, scale, outputWidth, outputHeight, jpegOptions, pngOptions, binary, mime;
+    try {
+      imageDocument = app.open(source.file);
+      if (!imageDocument.pageItems.length) throw new Error('The temporary raster document contains no image.');
+      pageItem = imageDocument.pageItems[0]; bounds = pageItem.visibleBounds;
+      sourceWidth = Math.max(1, Math.abs(Number(bounds[2]) - Number(bounds[0]))); sourceHeight = Math.max(1, Math.abs(Number(bounds[1]) - Number(bounds[3])));
+      scale = Math.min(1, targetWidth / sourceWidth, targetHeight / sourceHeight);
+      if (!isFinite(scale) || scale <= 0) scale = 1;
+      outputWidth = Math.max(1, Math.round(sourceWidth * scale)); outputHeight = Math.max(1, Math.round(sourceHeight * scale));
+      if (scale < 0.9999) pageItem.resize(scale * 100, scale * 100, true, true, true, true, scale * 100, Transformation.CENTER);
+      bounds = pageItem.visibleBounds; imageDocument.artboards[0].artboardRect = [bounds[0], bounds[1], bounds[2], bounds[3]];
+      if (preserveTransparency) {
+        outputFile = new File(temporaryFolder.fsName + '/optimized-' + imageNumber + '.png'); pngOptions = new ExportOptionsPNG24();
+        pngOptions.antiAliasing = true; pngOptions.artBoardClipping = true; pngOptions.transparency = true; pngOptions.horizontalScale = 100; pngOptions.verticalScale = 100;
+        imageDocument.exportFile(outputFile, ExportType.PNG24, pngOptions); mime = 'image/png';
+      } else {
+        outputFile = new File(temporaryFolder.fsName + '/optimized-' + imageNumber + '.jpg'); jpegOptions = new ExportOptionsJPEG();
+        jpegOptions.antiAliasing = true; jpegOptions.artBoardClipping = true; jpegOptions.optimization = true; jpegOptions.qualitySetting = OPTIMIZED_JPEG_QUALITY; jpegOptions.horizontalScale = 100; jpegOptions.verticalScale = 100;
+        imageDocument.exportFile(outputFile, ExportType.JPEG, jpegOptions); mime = 'image/jpeg';
+      }
+      if (!outputFile.exists || outputFile.length <= 0) throw new Error('Illustrator did not create the optimized raster file.');
+      binary = readBinaryFile(outputFile);
+      return {href: 'data:' + mime + ';base64,' + base64Encode(binary), format: preserveTransparency ? 'png' : 'jpeg', width: outputWidth, height: outputHeight, sourceBytes: source.binary.length, optimizedBytes: binary.length};
+    } catch (imageError) {
+      throw new Error('Photo optimization failed on ' + artboardName + ', image ' + imageNumber + ' (' + String(source.file.name || 'unnamed image') + '): ' + (imageError.message || imageError));
+    } finally {
+      if (imageDocument) try { imageDocument.close(SaveOptions.DONOTSAVECHANGES); } catch (_) {}
+      if (outputFile && outputFile.exists) try { outputFile.remove(); } catch (_) {}
+      if (source.temporary && source.file && source.file.exists) try { source.file.remove(); } catch (_) {}
+      try { doc.activate(); } catch (_) {}
+    }
+  }
+  function optimizeSvgImages(value, temporaryFolder, artboardIndex, artboardName) {
+    var source = String(value || ''), imagePattern = /<image\b[^>]*>/gi, exportedRasterFiles = temporaryRasterFiles(temporaryFolder), cache = {}, count = 0, optimizedCount = 0, sourceBytes = 0, optimizedBytes = 0, formats = {};
+    source = source.replace(imagePattern, function (tag) {
+      var hrefMatch = svgImageHref(tag), href, width, height, scale, targetWidth, targetHeight, sourceImage, preserveTransparency, signature, optimized, replacement;
+      if (!hrefMatch) throw new Error('Photo optimization failed on ' + artboardName + ': an SVG image has no href.');
+      count++; progress('Optimizing photos', count, Math.max(1, artboardsByIndex[artboardIndex].imageObjects.length), artboardName);
+      if (hrefMatch.invalid && exportedRasterFiles[count - 1]) href = exportedRasterFiles[count - 1].fsName;
+      else if (hrefMatch.invalid) { var placedFile = originalPlacedImageFile(artboardIndex, count); href = placedFile ? placedFile.fsName : hrefMatch.value; }
+      else href = hrefMatch.value;
+      if (!href || /^(?:visible|hidden|inherit|auto|none)$/i.test(href)) throw new Error('Photo optimization failed on ' + artboardName + ', image ' + count + ': Illustrator did not provide a readable raster file reference.');
+      width = svgNumberAttribute(tag, 'width'); height = svgNumberAttribute(tag, 'height'); scale = svgImageScale(tag);
+      targetWidth = Math.max(1, Math.ceil(width * scale.x / 72 * OPTIMIZED_IMAGE_PPI)); targetHeight = Math.max(1, Math.ceil(height * scale.y / 72 * OPTIMIZED_IMAGE_PPI));
+      sourceImage = decodedImageFile(href, temporaryFolder, count); preserveTransparency = sourceImage.extension === 'png' && pngNeedsTransparency(sourceImage.binary);
+      signature = sourceImage.binary.length + '|' + sourceImage.binary.substring(0, 48) + '|' + sourceImage.binary.substring(Math.max(0, sourceImage.binary.length - 48)) + '|' + targetWidth + 'x' + targetHeight + '|' + preserveTransparency;
+      optimized = cache[signature];
+      if (!optimized) { optimized = resampleImage(sourceImage, targetWidth, targetHeight, preserveTransparency, temporaryFolder, count, artboardName); cache[signature] = optimized; optimizedCount++; }
+      else if (sourceImage.temporary && sourceImage.file.exists) try { sourceImage.file.remove(); } catch (_) {}
+      sourceBytes += sourceImage.binary.length; optimizedBytes += optimized.optimizedBytes; formats[optimized.format] = true;
+      replacement = hrefMatch.leading + hrefMatch.name + '=' + hrefMatch.quote + optimized.href + hrefMatch.quote;
+      return tag.substring(0, hrefMatch.index) + replacement + tag.substring(hrefMatch.index + hrefMatch.length);
+    });
+    if (count) progress('Embedding optimized photos', count, count, artboardName);
+    imageOptimizationStats[artboardIndex] = {imageCount: count, optimizedImageCount: optimizedCount, targetPpi: OPTIMIZED_IMAGE_PPI, jpegQuality: OPTIMIZED_JPEG_QUALITY, imageFormat: formats.jpeg && formats.png ? 'jpeg-and-png' : formats.png ? 'png' : formats.jpeg ? 'jpeg' : 'none', sourceBytes: sourceBytes, optimizedBytes: optimizedBytes};
+    return source;
+  }
+  function photoRasterTarget(item) {
+    var parent = null, target = item;
+    try { parent = item.parent; } catch (_) { parent = null; }
+    while (parent && parent !== doc) {
+      try { if (parent.typename === 'GroupItem' && parent.clipped) { target = parent; break; } } catch (_) {}
+      try { parent = parent.parent; } catch (_) { parent = null; }
+    }
+    return target;
+  }
+  function rasterizeDisplayedPhotos(artboardIndex, artboardRecord) {
+    var states = [], targets = [], i, j, record, item, target, duplicate, placed, originalBounds, captureBounds, artboardBounds, originalArtboardBounds, options, seen, temporaryFile, temporaryFolder, temporaryLayer, layerStates, layer, width, height, hidden, totalBytes = 0;
+    for (i = 0; i < artboardRecord.imageObjects.length; i++) {
+      record = artboardRecord.imageObjects[i]; item = null;
+      try {
+        if (record.illustrator.typename === 'PlacedItem') item = doc.placedItems[record.illustrator.itemIndex];
+        else if (record.illustrator.typename === 'RasterItem') item = doc.rasterItems[record.illustrator.itemIndex];
+      } catch (_) { item = null; }
+      if (!item) continue;
+      target = photoRasterTarget(item); seen = false;
+      for (j = 0; j < targets.length; j++) if (targets[j] === target) { seen = true; break; }
+      if (!seen) targets.push(target);
+    }
+    temporaryFolder = new Folder(Folder.temp.fsName + '/chartlingo-flat-photos-' + new Date().getTime() + '-' + artboardIndex);
+    if (!temporaryFolder.create() && !temporaryFolder.exists) throw new Error('Could not create the temporary ChartLingo JPEG folder.');
+    try {
+      for (i = 0; i < targets.length; i++) {
+        progress('Creating lightweight JPEG photos', i + 1, Math.max(1, targets.length), artboardRecord.name);
+        target = targets[i]; duplicate = null; placed = null; temporaryLayer = null; layerStates = []; originalArtboardBounds = null; temporaryFile = new File(temporaryFolder.fsName + '/photo-' + (i + 1) + '.jpg'); hidden = false;
+        try { hidden = target.hidden; } catch (_) {}
+        try {
+          originalBounds = target.visibleBounds; artboardBounds = doc.artboards[artboardIndex].artboardRect;
+          captureBounds = [Math.max(Number(originalBounds[0]), Number(artboardBounds[0])), Math.min(Number(originalBounds[1]), Number(artboardBounds[1])), Math.min(Number(originalBounds[2]), Number(artboardBounds[2])), Math.max(Number(originalBounds[3]), Number(artboardBounds[3]))];
+          width = Math.max(1, captureBounds[2] - captureBounds[0]); height = Math.max(1, captureBounds[1] - captureBounds[3]);
+          if (captureBounds[2] <= captureBounds[0] || captureBounds[1] <= captureBounds[3]) throw new Error('The photo does not overlap the selected artboard.');
+          for (j = 0; j < doc.layers.length; j++) layerStates.push({layer: doc.layers[j], visible: doc.layers[j].visible, locked: doc.layers[j].locked});
+          temporaryLayer = doc.layers.add(); temporaryLayer.name = '__ChartLingo isolated photo'; temporaryLayer.visible = true; temporaryLayer.locked = false;
+          duplicate = target.duplicate(temporaryLayer, ElementPlacement.PLACEATBEGINNING);
+          try { duplicate.hidden = false; } catch (_) {}
+          try { duplicate.locked = false; } catch (_) {}
+          for (j = 0; j < layerStates.length; j++) { layer = layerStates[j].layer; try { layer.locked = false; } catch (_) {} try { layer.visible = false; } catch (_) {} }
+          originalArtboardBounds = [artboardBounds[0], artboardBounds[1], artboardBounds[2], artboardBounds[3]];
+          doc.artboards.setActiveArtboardIndex(artboardIndex); doc.artboards[artboardIndex].artboardRect = captureBounds;
+          options = new ExportOptionsJPEG(); options.antiAliasing = true; options.artBoardClipping = true; options.optimization = true; options.qualitySetting = OPTIMIZED_JPEG_QUALITY;
+          options.horizontalScale = OPTIMIZED_IMAGE_PPI / 72 * 100; options.verticalScale = OPTIMIZED_IMAGE_PPI / 72 * 100;
+          doc.exportFile(temporaryFile, ExportType.JPEG, options);
+          doc.artboards[artboardIndex].artboardRect = originalArtboardBounds;
+          if (temporaryLayer) { try { temporaryLayer.remove(); } catch (_) {} temporaryLayer = null; duplicate = null; }
+          for (j = 0; j < layerStates.length; j++) { layer = layerStates[j].layer; try { layer.visible = layerStates[j].visible; } catch (_) {} try { layer.locked = layerStates[j].locked; } catch (_) {} }
+          if (!temporaryFile.exists || temporaryFile.length <= 0) throw new Error('Illustrator did not create the flattened JPEG.');
+          totalBytes += temporaryFile.length;
+          placed = doc.placedItems.add(); placed.file = temporaryFile; placed.position = [captureBounds[0], captureBounds[1]]; placed.width = width; placed.height = height;
+          try { placed.move(target, ElementPlacement.PLACEBEFORE); } catch (_) {}
+          target.hidden = true;
+          states.push({target: target, hidden: hidden, raster: placed, duplicate: null, file: temporaryFile, folder: temporaryFolder});
+        } catch (rasterError) {
+          if (placed) try { placed.remove(); } catch (_) {}
+          throw new Error('Photo flattening failed on ' + artboardRecord.name + ', image ' + (i + 1) + ': ' + (rasterError.message || rasterError));
+        } finally {
+          if (originalArtboardBounds) try { doc.artboards[artboardIndex].artboardRect = originalArtboardBounds; } catch (_) {}
+          if (temporaryLayer) try { temporaryLayer.remove(); } catch (_) {}
+          for (j = 0; j < layerStates.length; j++) { layer = layerStates[j].layer; try { layer.visible = layerStates[j].visible; } catch (_) {} try { layer.locked = layerStates[j].locked; } catch (_) {} }
+        }
+      }
+      imageOptimizationStats[artboardIndex] = {imageCount: artboardRecord.imageObjects.length, optimizedImageCount: targets.length, targetPpi: OPTIMIZED_IMAGE_PPI, jpegQuality: OPTIMIZED_JPEG_QUALITY, imageFormat: 'jpeg', sourceBytes: 0, optimizedBytes: totalBytes};
+      return states;
+    } catch (error) {
+      restoreRasterizedPhotos(states);
+      removeTemporaryTree(temporaryFolder);
+      throw error;
+    }
+  }
+  function restoreRasterizedPhotos(states) {
+    var i, state, folder = null;
+    for (i = states.length - 1; i >= 0; i--) {
+      state = states[i];
+      if (state.raster) try { state.raster.remove(); } catch (_) {}
+      if (state.duplicate) try { state.duplicate.remove(); } catch (_) {}
+      if (state.target) try { state.target.hidden = state.hidden; } catch (_) {}
+      if (state.file && state.file.exists) try { state.file.remove(); } catch (_) {}
+      if (state.folder) folder = state.folder;
+    }
+    if (folder) try { removeTemporaryTree(folder); } catch (_) {}
+  }
+  function duplicateLogoOnTop(artboardIndex) {
+    var logo = logoItemsByArtboard[artboardIndex], layer = null, duplicate = null;
+    if (!logo) return null;
+    try {
+      layer = doc.layers.add(); layer.name = '__ChartLingo temporary top logo';
+      duplicate = logo.duplicate(layer, ElementPlacement.PLACEATBEGINNING);
+      try { duplicate.hidden = false; } catch (_) {}
+      try { duplicate.locked = false; } catch (_) {}
+      try { duplicate.zOrder(ZOrderMethod.BRINGTOFRONT); } catch (_) {}
+      return {layer: layer, duplicate: duplicate};
+    } catch (logoError) {
+      if (layer) try { layer.remove(); } catch (_) {}
+      throw new Error('Could not place the ZB logo above the optimized photo on ' + doc.artboards[artboardIndex].name + ': ' + (logoError.message || logoError));
+    }
+  }
+  function removeTemporaryTopLogo(state) {
+    if (!state) return;
+    if (state.layer) try { state.layer.remove(); } catch (_) {}
+    else if (state.duplicate) try { state.duplicate.remove(); } catch (_) {}
+  }
   function readSvg(artboardIndex, optimizedImages) {
-    var stem = 'chartlingo-v2-preview-' + new Date().getTime() + '-' + artboardIndex, temporary = new File(Folder.temp.fsName + '/' + stem + '.svg');
+    var stem = 'chartlingo-v2-preview-' + new Date().getTime() + '-' + artboardIndex, temporaryFolder = new Folder(Folder.temp.fsName + '/' + stem), temporary, generated, matches = [], value = '', cleanupIndex;
+    if (!temporaryFolder.create() && !temporaryFolder.exists) throw new Error('Could not create the temporary ChartLingo image folder.');
+    temporary = new File(temporaryFolder.fsName + '/' + stem + '.svg');
     var options = new ExportOptionsSVG();
     options.embedRasterImages = true;
     options.fontSubsetting = SVGFontSubsetting.None;
@@ -457,15 +744,18 @@
     options.saveMultipleArtboards = true;
     options.artboardRange = String(artboardIndex + 1);
     doc.artboards.setActiveArtboardIndex(artboardIndex);
-    doc.exportFile(temporary, ExportType.SVG, options);
-    var generated = temporary, matches = [];
-    if (!generated.exists) { try { matches = Folder.temp.getFiles(stem + '*.svg'); } catch (_) {} if (matches.length) generated = matches[0]; }
-    if (!generated.exists) throw new Error('Illustrator did not create the cropped SVG for artboard ' + (artboardIndex + 1) + '.');
-    generated.encoding = 'UTF-8'; generated.open('r'); var value = generated.read(); generated.close();
-    try { generated.remove(); } catch (_) {}
-    try { for (var cleanupIndex = 0; cleanupIndex < matches.length; cleanupIndex++) if (matches[cleanupIndex].exists) matches[cleanupIndex].remove(); } catch (_) {}
-    value = stripInvalidXmlCharacters(normalizeAdobeSvgNamespaces(value));
-    return optimizedImages ? value.replace(/>\s+</g, '><') : value;
+    try {
+      doc.exportFile(temporary, ExportType.SVG, options);
+      generated = temporary;
+      if (!generated.exists) { try { matches = temporaryFolder.getFiles(stem + '*.svg'); } catch (_) {} if (matches.length) generated = matches[0]; }
+      if (!generated.exists) throw new Error('Illustrator did not create the cropped SVG for artboard ' + (artboardIndex + 1) + '.');
+      generated.encoding = 'UTF-8'; generated.open('r'); value = generated.read(); generated.close();
+      value = stripInvalidXmlCharacters(normalizeAdobeSvgNamespaces(value));
+      return optimizedImages ? value.replace(/>\s+</g, '><') : value;
+    } finally {
+      try { for (cleanupIndex = 0; cleanupIndex < matches.length; cleanupIndex++) if (matches[cleanupIndex].exists) matches[cleanupIndex].remove(); } catch (_) {}
+      removeTemporaryTree(temporaryFolder);
+    }
   }
   function invalidSvgImageReason(value, expectedImages) {
     var source = String(value || ''), tagPattern = /<image\b[^>]*>/gi, hrefPattern = /(?:href|xlink:href)\s*=\s*["']([^"']*)["']/i, tag, href, payload, imageCount = 0;
@@ -481,24 +771,31 @@
     if (Number(expectedImages || 0) > 0 && imageCount === 0) return 'The SVG contains no image element for ' + expectedImages + ' detected raster image(s).';
     return null;
   }
-  function readArtworkWithoutLiveText(artboardIndex, artboardRecord) {
-    var states = [], value = '', i, frameIndex, seen = {};
-    for (i = 0; i < artboardRecord.textFrames.length; i++) {
-      frameIndex = artboardRecord.textFrames[i].illustrator.textFrameIndex;
-      if (seen[frameIndex]) continue; seen[frameIndex] = true;
-      states.push({index: frameIndex, hidden: doc.textFrames[frameIndex].hidden, opacity: doc.textFrames[frameIndex].opacity});
-      try { doc.textFrames[frameIndex].opacity = 0; } catch (_) {}
-      try { doc.textFrames[frameIndex].hidden = true; } catch (_) {}
+  function readArtworkWithoutLiveText(artboardIndex, artboardRecord, optimizedImages) {
+    var states = [], rasterStates = [], logoState = null, value = '', i, frameIndex, seen = {};
+    try {
+      if (optimizedImages) rasterStates = rasterizeDisplayedPhotos(artboardIndex, artboardRecord);
+      if (optimizedImages) logoState = duplicateLogoOnTop(artboardIndex);
+      for (i = 0; i < artboardRecord.textFrames.length; i++) {
+        frameIndex = artboardRecord.textFrames[i].illustrator.textFrameIndex;
+        if (seen[frameIndex]) continue; seen[frameIndex] = true;
+        states.push({index: frameIndex, hidden: doc.textFrames[frameIndex].hidden, opacity: doc.textFrames[frameIndex].opacity});
+        try { doc.textFrames[frameIndex].opacity = 0; } catch (_) {}
+        try { doc.textFrames[frameIndex].hidden = true; } catch (_) {}
+      }
+      value = readSvg(artboardIndex, optimizedImages);
     }
-    try { value = readSvg(artboardIndex, true); }
     finally {
       for (i = 0; i < states.length; i++) {
         try { doc.textFrames[states[i].index].opacity = states[i].opacity; } catch (_) {}
         try { doc.textFrames[states[i].index].hidden = states[i].hidden; } catch (_) {}
       }
+      if (optimizedImages) removeTemporaryTopLogo(logoState);
+      if (optimizedImages) restoreRasterizedPhotos(rasterStates);
     }
     return value;
   }
+  var logoItemsByArtboard = {};
   function logoBoundsForArtboard(artboardIndex) {
     var rect = doc.artboards[artboardIndex].artboardRect, boardWidth = rect[2] - rect[0], boardHeight = rect[1] - rect[3];
     var collections = [], best = null, bestScore = -1, c, i, item, bounds, box, centerX, centerY, aspect, hint, named, score;
@@ -511,7 +808,7 @@
         progress('Preflight logo scan', i, collections[c].length, doc.artboards[artboardIndex].name);
         item = collections[c][i];
         try {
-          if (item.hidden || item.locked) continue;
+          if (item.hidden) continue;
           bounds = item.visibleBounds;
           box = localBounds(bounds, rect);
           centerX = box.x + box.width / 2; centerY = box.y + box.height / 2;
@@ -523,7 +820,7 @@
           named = /logo|brand|masthead|zaobao|早报|早報|联合早报|聯合早報/i.test(hint);
           if (!named && (centerX < boardWidth * 0.58 || centerY < boardHeight * 0.58)) continue;
           score = (named ? 10000 : 0) + centerX / boardWidth * 100 + centerY / boardHeight * 120 + Math.min(box.width, box.height);
-          if (score > bestScore) { bestScore = score; best = box; }
+          if (score > bestScore) { bestScore = score; best = box; logoItemsByArtboard[artboardIndex] = item; }
         } catch (_) {}
       }
     }
@@ -738,19 +1035,20 @@
       if (invalidSvgImageReason(artboards[i].previewSvg, artboards[i].imageObjects.length)) artboards[i].previewSvg = null;
     } else artboards[i].previewSvg = null;
     progress(exportChoice.imageMode === 'optimized' ? 'Embedding photos and preserving vectors' : 'Rendering editable artwork', exportChoice.imageMode === 'optimized' ? i + 1 : artboards.length + i, exportChoice.imageMode === 'optimized' ? artboards.length : artboards.length * 2, artboards[i].name);
-    artboards[i].artworkSvg = readArtworkWithoutLiveText(artboards[i].index, artboards[i]);
+    artboards[i].artworkSvg = readArtworkWithoutLiveText(artboards[i].index, artboards[i], exportChoice.imageMode === 'optimized');
     imageValidationError = invalidSvgImageReason(artboards[i].artworkSvg, artboards[i].imageObjects.length);
     if (imageValidationError) throw new Error('Image export failed on ' + artboards[i].name + ': ' + imageValidationError + ' Re-embed the linked image in Illustrator and export again. Vector artwork was not flattened.');
-    artboards[i].imageExportDiagnostics = {chartId: artboards[i].id, imageCount: artboards[i].imageObjects.length, sourceType: artboards[i].imageObjects.length ? 'embedded-data-uri' : 'none', sourceIsValid: true, embedded: true, illustratorCompatible: true, vectorsPreserved: true, textPreservedSeparately: true, usedRasterFallback: false};
+    var optimization = imageOptimizationStats[artboards[i].index] || {optimizedImageCount: 0, targetPpi: null, jpegQuality: null, imageFormat: 'none', sourceBytes: 0, optimizedBytes: 0};
+    artboards[i].imageExportDiagnostics = {chartId: artboards[i].id, imageCount: artboards[i].imageObjects.length, optimizedImageCount: optimization.optimizedImageCount, imageFormat: optimization.imageFormat, targetPpi: exportChoice.imageMode === 'optimized' ? optimization.targetPpi : null, jpegQuality: exportChoice.imageMode === 'optimized' ? optimization.jpegQuality : null, sourceBytes: optimization.sourceBytes, optimizedBytes: optimization.optimizedBytes, sourceType: artboards[i].imageObjects.length ? (exportChoice.imageMode === 'optimized' ? 'optimized-embedded-data-uri' : 'original-embedded-data-uri') : 'none', sourceIsValid: true, embedded: true, illustratorCompatible: true, vectorsPreserved: true, textPreservedSeparately: true, usedRasterFallback: false};
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.7'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.8'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
   function writePackage(file, data, artboardName) {
     var payload, opened = false, written = false, closed = false, verifiedFile;
     if (!data || data.schema !== 'https://chartlingo.local/schemas/package-v2.json' || !data.document || !data.document.artboards) throw filesystemError('invalid_json_output', 'validate package structure', 'The generated package is missing required ChartLingo data.', file, 'Required schema or document data is missing.');
-    payload = jsonStringify(data, '  ', 0);
+    payload = jsonStringify(data, '', 0);
     file.encoding = 'UTF-8';
     try {
       opened = file.open('w');
@@ -819,7 +1117,7 @@
   }
   verifyCompleteExport();
   try { progressWindow.close(); } catch (_) {}
-  alert('ChartLingo export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.8.7\nMode: ' + exportDiagnostics.exportMode + '\nPhoto handling: embedded image; vectors preserved\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
+  alert('ChartLingo export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.8.8\nMode: ' + exportDiagnostics.exportMode + '\nPhoto handling: ' + (exportChoice.imageMode === 'optimized' ? 'displayed-size JPEG photos flattened at 100 PPI' : 'original embedded images') + '; vectors preserved\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
   } catch (exportError) {
     try { doc.artboards.setActiveArtboardIndex(initialActiveArtboard); } catch (_) {}
     try { progressWindow.close(); } catch (_) {}
