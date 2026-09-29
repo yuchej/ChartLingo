@@ -20,15 +20,12 @@
     list.selection = list.items[activeIndex]; list.enabled = false;
     group = dialog.add('group'); group.add('statictext', undefined, 'Photo handling:');
     imageMode = group.add('dropdownlist', undefined, ['Editable vectors + embedded photo (recommended)', 'High quality']); imageMode.selection = 0;
-    imageHelp = dialog.add('statictext', undefined, 'Flattens each displayed photo and its crop to a JPEG at 100 PPI and quality 80. Pixel dimensions follow the displayed graphic size while surrounding vectors remain editable.', {multiline: true}); imageHelp.preferredSize = [520, 42];
+    imageHelp = dialog.add('statictext', undefined, 'Rasterizes only each photo and its visible crop directly in memory. Photo pixels follow their displayed size in a normalized 1200 px graphic; surrounding vectors remain editable.', {multiline: true}); imageHelp.preferredSize = [520, 42];
     for (i = 0; i < doc.layers.length; i++) layerNames.push(doc.layers[i].name);
-    preflight = dialog.add('statictext', undefined, 'Preflight: ' + doc.pageItems.length + ' page items · ' + doc.textFrames.length + ' text frames · ' + doc.pathItems.length + ' paths · ' + doc.groupItems.length + ' groups · ' + doc.placedItems.length + ' linked/placed items\nLayers: ' + layerNames.join(', '), {multiline: true});
+    preflight = dialog.add('statictext', undefined, 'Fast export scans editable text and preserves the remaining artwork directly as SVG.\nLayers: ' + layerNames.join(', '), {multiline: true});
     preflight.preferredSize = [520, 48];
-    if (doc.pageItems.length > 5000 || doc.groupItems.length > 1000 || doc.placedItems.length > 20) {
-      var warning = dialog.add('statictext', undefined, 'Large/complex document detected. Use the recommended embedded-photo mode and export only the artboards you need.', {multiline: true}); warning.graphics.foregroundColor = warning.graphics.newPen(warning.graphics.PenType.SOLID_COLOR, [0.75, 0.25, 0.05], 1);
-    }
     mode.onChange = function () { list.enabled = multipleAvailable && mode.selection.index === 1; if (!list.enabled) list.selection = list.items[activeIndex]; };
-    imageMode.onChange = function () { imageHelp.text = imageMode.selection.index === 0 ? 'Flattens each displayed photo and its crop to a JPEG at 100 PPI and quality 80. Pixel dimensions follow the displayed graphic size while surrounding vectors remain editable.' : 'High quality also stores a complete Chinese SVG preview. Original-resolution photos stay embedded and vectors remain editable, but the package is larger.'; };
+    imageMode.onChange = function () { imageHelp.text = imageMode.selection.index === 0 ? 'Rasterizes only each photo and its visible crop directly in memory. Photo pixels follow their displayed size in a normalized 1200 px graphic; surrounding vectors remain editable.' : 'High quality also stores a complete Chinese SVG preview. Original-resolution photos stay embedded and vectors remain editable, but the package is larger.'; };
     buttons = dialog.add('group'); buttons.alignment = 'right'; buttons.add('button', undefined, 'Cancel', {name: 'cancel'}); buttons.add('button', undefined, 'Continue', {name: 'ok'});
     if (dialog.show() !== 1) return null;
     var indices = [], selectedItems = list.selection instanceof Array ? list.selection : (list.selection ? [list.selection] : []);
@@ -56,15 +53,19 @@
   function progress(stage, current, total, artboardName) {
     if (cancelled) throw new Error('__CHARTLINGO_CANCELLED__');
     var safeTotal = Math.max(1, total), percent = Math.max(0, Math.min(100, Math.round(current / safeTotal * 100)));
-    progressText.text = stage + (artboardName ? ' — ' + artboardName : '') + (exportChoice.indices.length > 1 ? ' · ' + current + '/' + total : ''); progressBar.value = percent;
-    if (current === 0 || current === total || current % 40 === 0) { progressWindow.update(); app.redraw(); $.sleep(1); }
+    progressText.text = stage + (artboardName ? ' — ' + artboardName : '') + ' · ' + current + '/' + total; progressBar.value = percent;
+    if (current === 0 || current === total || current % 10 === 0) progressWindow.update();
     if (cancelled) throw new Error('__CHARTLINGO_CANCELLED__');
   }
   var initialActiveArtboard = doc.artboards.getActiveArtboardIndex();
   try {
 
-  var OPTIMIZED_IMAGE_PPI = 100;
+  var NORMALIZED_OUTPUT_WIDTH = 1200;
+  var MAX_OPTIMIZED_IMAGE_DIMENSION = 1200;
   var OPTIMIZED_JPEG_QUALITY = 80;
+  var DEFAULT_EXPORT_FONT_FAMILY = 'Noto Sans SC';
+  var DEFAULT_EXPORT_FONT_STYLE = 'Regular';
+  var DEFAULT_EXPORT_FONT_WEIGHT = 400;
   var imageOptimizationStats = {};
 
   function jsonQuote(value) {
@@ -211,43 +212,48 @@
     }
     return lines;
   }
+  function rawFrameLines(frame) {
+    var raw = '', parts = [], values = [], i, value;
+    try { raw = String(frame.contents || ''); } catch (_) { raw = ''; }
+    parts = raw.split(/[\r\n]+/);
+    for (i = 0; i < parts.length; i++) { value = clean(parts[i]); if (value) values.push(value); }
+    return values;
+  }
+  function fastTextBounds(frame) {
+    try { return frame.geometricBounds; } catch (_) {}
+    return frame.visibleBounds;
+  }
   function visibleLines(frame) {
-    var values = [];
-    try { for (var i = 0; i < frame.lines.length; i++) values.push(clean(frame.lines[i].contents)); } catch (_) {}
+    var values = rawFrameLines(frame);
     return joinedNumericAxisLines(values.length ? values : [clean(frame.contents)]);
   }
   function hasUniformLineFontSize(frame) {
-    var first = null, count = 0, i, value;
-    try {
-      for (i = 0; i < frame.lines.length; i++) {
-        if (!clean(frame.lines[i].contents)) continue;
-        value = Number(frame.lines[i].characterAttributes.size);
-        if (!value) return false;
-        if (first === null) first = value;
-        else if (Math.abs(first - value) > 0.01) return false;
-        count++;
-      }
-    } catch (_) { return false; }
-    return count > 0;
+    return rawFrameLines(frame).length > 0;
+  }
+  function estimatedTextSize(box, contents, artboardWidth) {
+    var lineCount = Math.max(1, String(contents || '').split(/[\r\n]+/).length), height = Math.max(1, Number(box && box.height) || 0), estimate = height / lineCount / 1.2, safeMaximum = Math.max(14, Number(artboardWidth || 0) * 0.1);
+    if (!isFinite(estimate) || estimate <= 0) estimate = 14;
+    return Math.max(6, Math.min(safeMaximum, estimate));
+  }
+
+  // Virtual cells inherit the source frame's typography, but their physical row
+  // can be much smaller than the source TextFrame. Clamp only virtual text so
+  // table/list/axis/credit records cannot receive a font larger than their row.
+  function virtualTextSize(sourceSize, cellHeight) {
+    var source = Math.max(6, Number(sourceSize) || 14), height = Math.max(1, Number(cellHeight) || 0);
+    return Math.max(6, Math.min(source, height * 0.72));
+  }
+
+  function virtualPermittedHeight(cellHeight, fontSize) {
+    return Math.max(Math.max(1, Number(cellHeight) || 0), Math.max(6, Number(fontSize) || 6) * 1.35);
   }
   function lineWords(line) {
-    var values = [], i, value;
-    try {
-      for (i = 0; i < line.words.length; i++) {
-        value = clean(line.words[i].contents);
-        if (value) values.push(value);
-      }
-    } catch (_) {}
-    if (values.length === 1 && /[\t ]/.test(values[0])) values = values[0].split(/[\t ]+/);
-    if (!values.length) {
-      value = clean(line.contents);
-      if (value) values = value.split(/[\t ]+/);
-    }
+    var values = [], parts = clean(String(line || '')).split(/[\t ]+/), i;
+    for (i = 0; i < parts.length; i++) if (parts[i]) values.push(parts[i]);
     return values;
   }
   function pairedAxisLabels(frame) {
-    var lines = [], first, second, result = [], i;
-    try { for (i = 0; i < frame.lines.length; i++) if (clean(frame.lines[i].contents)) lines.push(frame.lines[i]); } catch (_) {}
+    var lines = rawFrameLines(frame), first, second, result = [], i;
     if (lines.length !== 2) return null;
     first = lineWords(lines[0]); second = lineWords(lines[1]);
     if (first.length < 2 || first.length !== second.length) return null;
@@ -319,23 +325,65 @@
     } catch (_) {}
     return 'left';
   }
-  function tableColumns(frame, count, width, numberedList) {
-    var anchors = [0], aligns = ['left'], stops = null, i, step, next, columns = [];
-    try { stops = frame.paragraphs[0].paragraphAttributes.tabStops; } catch (_) {}
-    for (i = 1; i < count; i++) {
-      if (stops && stops.length >= i) { anchors.push(Math.max(0, Math.min(width, Number(stops[i - 1].position)))); aligns.push(tabAlignment(stops[i - 1])); }
-      else { step = numberedList && count === 2 ? width * 0.28 : width / count; anchors.push(i === 1 && numberedList && count === 2 ? step : width / count * i); aligns.push('left'); }
+  /* Read Illustrator paragraph tab stops once per source TextFrame.  A tabbed
+     table should keep Illustrator's own horizontal anchors instead of being
+     reconstructed as equal-width columns.  The function is deliberately
+     conservative: if Illustrator does not expose enough sane tab positions,
+     the existing dynamic-grid fallback is used unchanged. */
+  function illustratorTabLayout(frame, count, width, availableWidth) {
+    var limit = Math.max(1, Number(availableWidth) || width), bestStops = null, bestCount = 0;
+    var p, stops, i, pos, candidate, seen, last, needed = Math.max(0, count - 1);
+    if (count < 2 || needed < 1) return null;
+    try {
+      for (p = 0; p < frame.paragraphs.length; p++) {
+        stops = frame.paragraphs[p].paragraphAttributes.tabStops;
+        if (!stops || !stops.length) continue;
+        candidate = []; seen = {};
+        for (i = 0; i < stops.length; i++) {
+          try { pos = Number(stops[i].position); } catch (_) { pos = NaN; }
+          if (!isFinite(pos) || pos <= 0 || pos >= limit) continue;
+          pos = Math.round(pos * 1000) / 1000;
+          if (seen[String(pos)]) continue;
+          seen[String(pos)] = true;
+          candidate.push({position: pos, alignment: tabAlignment(stops[i])});
+        }
+        candidate.sort(function (a, b) { return a.position - b.position; });
+        if (candidate.length > bestCount) { bestStops = candidate; bestCount = candidate.length; }
+        if (candidate.length >= needed) break;
+      }
+    } catch (_) { bestStops = null; }
+    if (!bestStops || bestStops.length < needed) return null;
+
+    var anchors = [0], aligns = ['left'], columns = [], next, resolvedWidth, step;
+    for (i = 0; i < needed; i++) {
+      if (bestStops[i].position <= anchors[anchors.length - 1]) return null;
+      anchors.push(bestStops[i].position);
+      aligns.push(bestStops[i].alignment || 'left');
     }
-    /* A tab stop is the text anchor, not the boundary between two columns. Using
-       midpoint boundaries shifts every cell after the first one to the left. */
+    last = anchors[anchors.length - 1];
+    step = anchors.length > 1 ? Math.max(1, last - anchors[anchors.length - 2]) : width;
+    resolvedWidth = Math.min(limit, Math.max(width, last + step));
     for (i = 0; i < count; i++) {
-      next = i + 1 < anchors.length ? anchors[i + 1] : width;
-      /* Point-text visible bounds end at the final glyph, so the remainder
-         after the last tab anchor is not the final column width. Reuse at
-         least the preceding tab span to prevent the last column from being
-         squeezed during English layout. */
-      step = i === count - 1 && i > 0 ? anchors[i] - anchors[i - 1] : 0;
-      columns.push({x: anchors[i], width: Math.max(1, next - anchors[i], step), alignment: aligns[i]});
+      next = i + 1 < anchors.length ? anchors[i + 1] : resolvedWidth;
+      if (next <= anchors[i]) return null;
+      columns.push({x: anchors[i], width: Math.max(1, next - anchors[i]), alignment: aligns[i] || 'left', layoutSource: 'illustrator-tab', tabAnchor: anchors[i]});
+    }
+    return columns;
+  }
+
+  function tableColumns(frame, count, width, numberedList, availableWidth) {
+    var strict = illustratorTabLayout(frame, count, width, availableWidth);
+    if (strict) return strict;
+    var anchors = [0], aligns = ['left'], i, step, next, columns = [], limit, resolvedWidth;
+    limit = Math.max(1, Number(availableWidth) || width);
+    for (i = 1; i < count; i++) {
+      step = numberedList && count === 2 ? width * 0.28 : width / count; anchors.push(i === 1 && numberedList && count === 2 ? step : width / count * i); aligns.push('left');
+    }
+    step = count > 1 ? Math.max(1, anchors[count - 1] - anchors[count - 2]) : width;
+    resolvedWidth = Math.min(limit, Math.max(width, anchors[count - 1] + step));
+    for (i = 0; i < count; i++) {
+      next = i + 1 < anchors.length ? anchors[i + 1] : resolvedWidth;
+      columns.push({x: anchors[i], width: Math.max(1, next - anchors[i]), alignment: aligns[i], layoutSource: 'reconstructed-grid', tabAnchor: anchors[i]});
     }
     return columns;
   }
@@ -358,6 +406,11 @@
   }
   function colorHex(color) {
     function h(v) { var s = Math.max(0, Math.min(255, Math.round(v))).toString(16); return s.length < 2 ? '0' + s : s; }
+    function tinted(hex, tint) {
+      var amount = Math.max(0, Math.min(100, Number(tint))) / 100;
+      if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+      return '#' + h(255 - (255 - parseInt(hex.substring(1, 3), 16)) * amount) + h(255 - (255 - parseInt(hex.substring(3, 5), 16)) * amount) + h(255 - (255 - parseInt(hex.substring(5, 7), 16)) * amount);
+    }
     try {
       if (color.typename === 'RGBColor') {
         return '#' + h(color.red) + h(color.green) + h(color.blue);
@@ -370,13 +423,53 @@
         var gray = 255 * (1 - color.gray / 100);
         return '#' + h(gray) + h(gray) + h(gray);
       }
+      if (color.typename === 'SpotColor' && color.spot && color.spot.color) {
+        return tinted(colorHex(color.spot.color), color.tint == null ? 100 : color.tint);
+      }
     } catch (_) {}
     return '#14283f';
   }
-  function graphicTextType(value, frame) {
-    var text = clean(value), hint = String(frame.name || '') + ' ' + String(frame.layer ? frame.layer.name : '');
-    if (/^[+-]?\d+(?:[.,]\d+)?\s*%$/.test(text)) return 'graphic-percentage';
-    if (/^[¥￥$€£]?\s*[+-]?\d+(?:[.,]\d+)?(?:\s*(?:亿|万|千|百|million|billion|m|bn))?(?:元|美元|人民币)?$/i.test(text)) return 'graphic-value';
+  function leadingLegendGlyph(value) {
+    var match = /^\s*([■□▪▫●○◆◇▲△▼▽])\s*/.exec(String(value || ''));
+    return match ? match[1] : null;
+  }
+  function legendInfo(frame, value) {
+    var glyph = leadingLegendGlyph(value), result = null, color = null, size = null;
+    if (!glyph) return null;
+    try { color = colorHex(frame.characters[0].characterAttributes.fillColor); } catch (_) {}
+    try { size = Number(frame.characters[0].characterAttributes.size); } catch (_) { size = null; }
+    result = {glyph: glyph, fill: color || '#14283f', fontSize: isFinite(size) && size > 0 ? size : null};
+    return result;
+  }
+  function withoutLegendGlyph(value) {
+    return clean(String(value || '').replace(/^\s*[■□▪▫●○◆◇▲△▼▽]\s*/, ''));
+  }
+  function attachLegendMetadata(record, frame, rawValue) {
+    var legend = legendInfo(frame, rawValue);
+    if (!legend) return record;
+    record.sourceText = withoutLegendGlyph(rawValue);
+    record.visibleLines = [record.sourceText];
+    record.prefixGlyph = legend.glyph;
+    record.prefixStyle = {fill: legend.fill, fontSize: legend.fontSize || record.style.fontSize, preserveOriginalColor: true};
+    record.preservePrefixGlyph = true;
+    record.matchText = record.sourceText;
+    return record;
+  }
+  function graphicTextType(value, frameName, layerName) {
+    var text = clean(value), hint = String(frameName || '') + ' ' + String(layerName || ''), probe = text, lower;
+    function simpleNumber(candidate) { return /^[+\-]?\d+(?:[.,]\d+)?$/.test(clean(candidate)); }
+    if (/%$/.test(probe)) { probe = clean(probe.substring(0, probe.length - 1)); if (simpleNumber(probe)) return 'graphic-percentage'; probe = text; }
+    if (/^[¥￥$€£]/.test(probe)) probe = clean(probe.substring(1));
+    if (/人民币$/.test(probe)) probe = clean(probe.substring(0, probe.length - 3));
+    else if (/美元$/.test(probe)) probe = clean(probe.substring(0, probe.length - 2));
+    else if (/元$/.test(probe)) probe = clean(probe.substring(0, probe.length - 1));
+    lower = probe.toLowerCase();
+    if (/billion$/.test(lower)) probe = clean(probe.substring(0, probe.length - 7));
+    else if (/million$/.test(lower)) probe = clean(probe.substring(0, probe.length - 7));
+    else if (/bn$/.test(lower)) probe = clean(probe.substring(0, probe.length - 2));
+    else if (/m$/.test(lower)) probe = clean(probe.substring(0, probe.length - 1));
+    else if (/[亿万千百]$/.test(probe)) probe = clean(probe.substring(0, probe.length - 1));
+    if (simpleNumber(probe)) return 'graphic-value';
     if (/label|caption|名称|標籤|标签/i.test(hint)) return 'graphic-label';
     return 'chart';
   }
@@ -422,13 +515,17 @@
     }
     return {fill: fill, sourceColor: fill, stroke: stroke, opacity: opacity / 100, preserveOriginalColor: true};
   }
+  var sourceGroupCacheItems = [], sourceGroupCacheValues = [];
   function sourceGroupKey(item, rect) {
-    var parent = item, bounds, name, layer;
+    var parent = item, bounds, name, layer, cacheIndex;
     while (parent) {
       try {
         if (parent.typename === 'GroupItem') {
+          for (cacheIndex = 0; cacheIndex < sourceGroupCacheItems.length; cacheIndex++) if (sourceGroupCacheItems[cacheIndex] === parent) return sourceGroupCacheValues[cacheIndex];
           bounds = parent.visibleBounds; name = String(parent.name || 'group'); layer = String(parent.layer ? parent.layer.name : '');
-          return layer + '|' + name + '|' + Math.round(bounds[0] - rect[0]) + '|' + Math.round(rect[1] - bounds[1]) + '|' + Math.round(bounds[2] - bounds[0]) + '|' + Math.round(bounds[1] - bounds[3]);
+          var groupKey = layer + '|' + name + '|' + Math.round(bounds[0] - rect[0]) + '|' + Math.round(rect[1] - bounds[1]) + '|' + Math.round(bounds[2] - bounds[0]) + '|' + Math.round(bounds[1] - bounds[3]);
+          sourceGroupCacheItems.push(parent); sourceGroupCacheValues.push(groupKey);
+          return groupKey;
         }
       } catch (_) {}
       try { parent = parent.parent; } catch (_) { parent = null; }
@@ -603,7 +700,7 @@
   function optimizeSvgImages(value, temporaryFolder, artboardIndex, artboardName) {
     var source = String(value || ''), imagePattern = /<image\b[^>]*>/gi, exportedRasterFiles = temporaryRasterFiles(temporaryFolder), cache = {}, count = 0, optimizedCount = 0, sourceBytes = 0, optimizedBytes = 0, formats = {};
     source = source.replace(imagePattern, function (tag) {
-      var hrefMatch = svgImageHref(tag), href, width, height, scale, targetWidth, targetHeight, sourceImage, preserveTransparency, signature, optimized, replacement;
+      var hrefMatch = svgImageHref(tag), href, width, height, scale, normalizedScale, targetWidth, targetHeight, sourceImage, preserveTransparency, signature, optimized, replacement;
       if (!hrefMatch) throw new Error('Photo optimization failed on ' + artboardName + ': an SVG image has no href.');
       count++; progress('Optimizing photos', count, Math.max(1, artboardsByIndex[artboardIndex].imageObjects.length), artboardName);
       if (hrefMatch.invalid && exportedRasterFiles[count - 1]) href = exportedRasterFiles[count - 1].fsName;
@@ -611,7 +708,10 @@
       else href = hrefMatch.value;
       if (!href || /^(?:visible|hidden|inherit|auto|none)$/i.test(href)) throw new Error('Photo optimization failed on ' + artboardName + ', image ' + count + ': Illustrator did not provide a readable raster file reference.');
       width = svgNumberAttribute(tag, 'width'); height = svgNumberAttribute(tag, 'height'); scale = svgImageScale(tag);
-      targetWidth = Math.max(1, Math.ceil(width * scale.x / 72 * OPTIMIZED_IMAGE_PPI)); targetHeight = Math.max(1, Math.ceil(height * scale.y / 72 * OPTIMIZED_IMAGE_PPI));
+      normalizedScale = NORMALIZED_OUTPUT_WIDTH / Math.max(1, artboardsByIndex[artboardIndex].bounds.width);
+      targetWidth = Math.max(1, Math.ceil(width * scale.x * normalizedScale)); targetHeight = Math.max(1, Math.ceil(height * scale.y * normalizedScale));
+      normalizedScale = Math.min(1, MAX_OPTIMIZED_IMAGE_DIMENSION / targetWidth, MAX_OPTIMIZED_IMAGE_DIMENSION / targetHeight);
+      targetWidth = Math.max(1, Math.round(targetWidth * normalizedScale)); targetHeight = Math.max(1, Math.round(targetHeight * normalizedScale));
       sourceImage = decodedImageFile(href, temporaryFolder, count); preserveTransparency = sourceImage.extension === 'png' && pngNeedsTransparency(sourceImage.binary);
       signature = sourceImage.binary.length + '|' + sourceImage.binary.substring(0, 48) + '|' + sourceImage.binary.substring(Math.max(0, sourceImage.binary.length - 48)) + '|' + targetWidth + 'x' + targetHeight + '|' + preserveTransparency;
       optimized = cache[signature];
@@ -622,7 +722,7 @@
       return tag.substring(0, hrefMatch.index) + replacement + tag.substring(hrefMatch.index + hrefMatch.length);
     });
     if (count) progress('Embedding optimized photos', count, count, artboardName);
-    imageOptimizationStats[artboardIndex] = {imageCount: count, optimizedImageCount: optimizedCount, targetPpi: OPTIMIZED_IMAGE_PPI, jpegQuality: OPTIMIZED_JPEG_QUALITY, imageFormat: formats.jpeg && formats.png ? 'jpeg-and-png' : formats.png ? 'png' : formats.jpeg ? 'jpeg' : 'none', sourceBytes: sourceBytes, optimizedBytes: optimizedBytes};
+    imageOptimizationStats[artboardIndex] = {imageCount: count, optimizedImageCount: optimizedCount, targetPpi: null, rasterSizing: 'normalized-output', normalizedOutputWidth: NORMALIZED_OUTPUT_WIDTH, maximumImageDimension: MAX_OPTIMIZED_IMAGE_DIMENSION, jpegQuality: OPTIMIZED_JPEG_QUALITY, imageFormat: formats.jpeg && formats.png ? 'jpeg-and-png' : formats.png ? 'png' : formats.jpeg ? 'jpeg' : 'none', sourceBytes: sourceBytes, optimizedBytes: optimizedBytes};
     return source;
   }
   function photoRasterTarget(item) {
@@ -634,8 +734,14 @@
     }
     return target;
   }
+  function normalizedRasterScale(artboardBounds, width, height) {
+    var artboardWidth = Math.max(1, Number(artboardBounds[2]) - Number(artboardBounds[0])), scale = NORMALIZED_OUTPUT_WIDTH / artboardWidth * 100;
+    if (width > 0) scale = Math.min(scale, MAX_OPTIMIZED_IMAGE_DIMENSION / width * 100);
+    if (height > 0) scale = Math.min(scale, MAX_OPTIMIZED_IMAGE_DIMENSION / height * 100);
+    return Math.max(1, scale);
+  }
   function rasterizeDisplayedPhotos(artboardIndex, artboardRecord) {
-    var states = [], targets = [], i, j, record, item, target, duplicate, placed, originalBounds, captureBounds, artboardBounds, originalArtboardBounds, options, seen, temporaryFile, temporaryFolder, temporaryLayer, layerStates, layer, width, height, hidden, totalBytes = 0;
+    var states = [], targets = [], fallbackCount = 0, i, j, record, item, target, duplicate, raster, originalBounds, captureBounds, artboardBounds, options, rasterScale, resolution, seen, temporaryLayer, width, height, hidden, locked, targetLayer, layerLocked;
     for (i = 0; i < artboardRecord.imageObjects.length; i++) {
       record = artboardRecord.imageObjects[i]; item = null;
       try {
@@ -647,52 +753,59 @@
       for (j = 0; j < targets.length; j++) if (targets[j] === target) { seen = true; break; }
       if (!seen) targets.push(target);
     }
-    temporaryFolder = new Folder(Folder.temp.fsName + '/chartlingo-flat-photos-' + new Date().getTime() + '-' + artboardIndex);
-    if (!temporaryFolder.create() && !temporaryFolder.exists) throw new Error('Could not create the temporary ChartLingo JPEG folder.');
+    if (!targets.length) {
+      imageOptimizationStats[artboardIndex] = {imageCount: 0, optimizedImageCount: 0, targetPpi: null, rasterSizing: 'normalized-output', normalizedOutputWidth: NORMALIZED_OUTPUT_WIDTH, maximumImageDimension: MAX_OPTIMIZED_IMAGE_DIMENSION, jpegQuality: null, imageFormat: 'none', sourceBytes: 0, optimizedBytes: 0};
+      return states;
+    }
     try {
       for (i = 0; i < targets.length; i++) {
-        progress('Creating lightweight JPEG photos', i + 1, Math.max(1, targets.length), artboardRecord.name);
-        target = targets[i]; duplicate = null; placed = null; temporaryLayer = null; layerStates = []; originalArtboardBounds = null; temporaryFile = new File(temporaryFolder.fsName + '/photo-' + (i + 1) + '.jpg'); hidden = false;
+        progress('Flattening visible photos in memory', i + 1, Math.max(1, targets.length), artboardRecord.name);
+        target = targets[i]; duplicate = null; raster = null; temporaryLayer = null; hidden = false; locked = false; targetLayer = null; layerLocked = false;
         try { hidden = target.hidden; } catch (_) {}
+        try { locked = target.locked; target.locked = false; } catch (_) {}
+        try { targetLayer = target.layer; layerLocked = targetLayer.locked; targetLayer.locked = false; } catch (_) { targetLayer = null; }
         try {
           originalBounds = target.visibleBounds; artboardBounds = doc.artboards[artboardIndex].artboardRect;
           captureBounds = [Math.max(Number(originalBounds[0]), Number(artboardBounds[0])), Math.min(Number(originalBounds[1]), Number(artboardBounds[1])), Math.min(Number(originalBounds[2]), Number(artboardBounds[2])), Math.max(Number(originalBounds[3]), Number(artboardBounds[3]))];
           width = Math.max(1, captureBounds[2] - captureBounds[0]); height = Math.max(1, captureBounds[1] - captureBounds[3]);
           if (captureBounds[2] <= captureBounds[0] || captureBounds[1] <= captureBounds[3]) throw new Error('The photo does not overlap the selected artboard.');
-          for (j = 0; j < doc.layers.length; j++) layerStates.push({layer: doc.layers[j], visible: doc.layers[j].visible, locked: doc.layers[j].locked});
           temporaryLayer = doc.layers.add(); temporaryLayer.name = '__ChartLingo isolated photo'; temporaryLayer.visible = true; temporaryLayer.locked = false;
           duplicate = target.duplicate(temporaryLayer, ElementPlacement.PLACEATBEGINNING);
           try { duplicate.hidden = false; } catch (_) {}
           try { duplicate.locked = false; } catch (_) {}
-          for (j = 0; j < layerStates.length; j++) { layer = layerStates[j].layer; try { layer.locked = false; } catch (_) {} try { layer.visible = false; } catch (_) {} }
-          originalArtboardBounds = [artboardBounds[0], artboardBounds[1], artboardBounds[2], artboardBounds[3]];
-          doc.artboards.setActiveArtboardIndex(artboardIndex); doc.artboards[artboardIndex].artboardRect = captureBounds;
-          options = new ExportOptionsJPEG(); options.antiAliasing = true; options.artBoardClipping = true; options.optimization = true; options.qualitySetting = OPTIMIZED_JPEG_QUALITY;
-          options.horizontalScale = OPTIMIZED_IMAGE_PPI / 72 * 100; options.verticalScale = OPTIMIZED_IMAGE_PPI / 72 * 100;
-          doc.exportFile(temporaryFile, ExportType.JPEG, options);
-          doc.artboards[artboardIndex].artboardRect = originalArtboardBounds;
-          if (temporaryLayer) { try { temporaryLayer.remove(); } catch (_) {} temporaryLayer = null; duplicate = null; }
-          for (j = 0; j < layerStates.length; j++) { layer = layerStates[j].layer; try { layer.visible = layerStates[j].visible; } catch (_) {} try { layer.locked = layerStates[j].locked; } catch (_) {} }
-          if (!temporaryFile.exists || temporaryFile.length <= 0) throw new Error('Illustrator did not create the flattened JPEG.');
-          totalBytes += temporaryFile.length;
-          placed = doc.placedItems.add(); placed.file = temporaryFile; placed.position = [captureBounds[0], captureBounds[1]]; placed.width = width; placed.height = height;
-          try { placed.move(target, ElementPlacement.PLACEBEFORE); } catch (_) {}
+          rasterScale = normalizedRasterScale(artboardBounds, width, height);
+          // Illustrator only accepts rasterization resolutions from 72 to 2400 PPI.
+          // Large artboards can produce a normalized scale below 100%; never pass the
+          // resulting sub-72 value to rasterize(), or Illustrator reports the vague
+          // "Required value is missing" error and aborts the whole package export.
+          resolution = Math.max(72, Math.min(2400, 72 * rasterScale / 100));
+          options = new RasterizeOptions(); options.resolution = resolution; options.transparency = true; options.clippingMask = true; options.convertTextToOutlines = false;
+          try { options.antiAliasingMethod = AntiAliasingMethod.ARTOPTIMIZED; } catch (_) {}
+          try { options.colorModel = RasterizationColorModel.RGB; } catch (_) {}
+          raster = doc.rasterize(duplicate, captureBounds, options); duplicate = null;
+          if (!raster) throw new Error('Illustrator did not create the in-memory raster.');
+          try { raster.move(target, ElementPlacement.PLACEBEFORE); } catch (moveError) { throw new Error('Could not preserve the photo layer position: ' + (moveError.message || moveError)); }
           target.hidden = true;
-          states.push({target: target, hidden: hidden, raster: placed, duplicate: null, file: temporaryFile, folder: temporaryFolder});
+          if (temporaryLayer) { try { temporaryLayer.remove(); } catch (_) {} temporaryLayer = null; }
+          states.push({target: target, hidden: hidden, locked: locked, layer: targetLayer, layerLocked: layerLocked, raster: raster, duplicate: null});
         } catch (rasterError) {
-          if (placed) try { placed.remove(); } catch (_) {}
-          throw new Error('Photo flattening failed on ' + artboardRecord.name + ', image ' + (i + 1) + ': ' + (rasterError.message || rasterError));
+          if (raster) try { raster.remove(); } catch (_) {}
+          try { target.hidden = hidden; } catch (_) {}
+          // Some placed artwork, clipping groups, meshes, effects, and legacy image
+          // objects cannot be rasterized through Illustrator's scripting API. Keep
+          // the original visible image for SVG export instead of aborting the whole
+          // ChartLingo package. Other compatible photos are still optimized.
+          fallbackCount++;
         } finally {
-          if (originalArtboardBounds) try { doc.artboards[artboardIndex].artboardRect = originalArtboardBounds; } catch (_) {}
           if (temporaryLayer) try { temporaryLayer.remove(); } catch (_) {}
-          for (j = 0; j < layerStates.length; j++) { layer = layerStates[j].layer; try { layer.visible = layerStates[j].visible; } catch (_) {} try { layer.locked = layerStates[j].locked; } catch (_) {} }
+          try { target.locked = locked; } catch (_) {}
+          if (targetLayer) try { targetLayer.locked = layerLocked; } catch (_) {}
         }
       }
-      imageOptimizationStats[artboardIndex] = {imageCount: artboardRecord.imageObjects.length, optimizedImageCount: targets.length, targetPpi: OPTIMIZED_IMAGE_PPI, jpegQuality: OPTIMIZED_JPEG_QUALITY, imageFormat: 'jpeg', sourceBytes: 0, optimizedBytes: totalBytes};
+      imageOptimizationStats[artboardIndex] = {imageCount: artboardRecord.imageObjects.length, optimizedImageCount: states.length, fallbackImageCount: fallbackCount, targetPpi: null, rasterSizing: 'normalized-output', normalizedOutputWidth: NORMALIZED_OUTPUT_WIDTH, maximumImageDimension: MAX_OPTIMIZED_IMAGE_DIMENSION, jpegQuality: null, imageFormat: fallbackCount ? 'embedded-raster-with-original-fallback' : 'embedded-raster', sourceBytes: 0, optimizedBytes: 0};
       return states;
     } catch (error) {
       restoreRasterizedPhotos(states);
-      removeTemporaryTree(temporaryFolder);
       throw error;
     }
   }
@@ -700,9 +813,13 @@
     var i, state, folder = null;
     for (i = states.length - 1; i >= 0; i--) {
       state = states[i];
+      if (state.layer) try { state.layer.locked = false; } catch (_) {}
+      if (state.raster) try { state.raster.locked = false; } catch (_) {}
       if (state.raster) try { state.raster.remove(); } catch (_) {}
       if (state.duplicate) try { state.duplicate.remove(); } catch (_) {}
       if (state.target) try { state.target.hidden = state.hidden; } catch (_) {}
+      if (state.target) try { state.target.locked = state.locked; } catch (_) {}
+      if (state.layer) try { state.layer.locked = state.layerLocked; } catch (_) {}
       if (state.file && state.file.exists) try { state.file.remove(); } catch (_) {}
       if (state.folder) folder = state.folder;
     }
@@ -774,8 +891,8 @@
   function readArtworkWithoutLiveText(artboardIndex, artboardRecord, optimizedImages) {
     var states = [], rasterStates = [], logoState = null, value = '', i, frameIndex, seen = {};
     try {
-      if (optimizedImages) rasterStates = rasterizeDisplayedPhotos(artboardIndex, artboardRecord);
-      if (optimizedImages) logoState = duplicateLogoOnTop(artboardIndex);
+      if (optimizedImages && artboardRecord.imageObjects.length) rasterStates = rasterizeDisplayedPhotos(artboardIndex, artboardRecord);
+      if (optimizedImages && rasterStates.length) logoState = duplicateLogoOnTop(artboardIndex);
       for (i = 0; i < artboardRecord.textFrames.length; i++) {
         frameIndex = artboardRecord.textFrames[i].illustrator.textFrameIndex;
         if (seen[frameIndex]) continue; seen[frameIndex] = true;
@@ -809,6 +926,12 @@
         item = collections[c][i];
         try {
           if (item.hidden) continue;
+          hint = String(item.name || '') + ' ' + String(item.layer ? item.layer.name : '');
+          named = /logo|brand|masthead|zaobao|早报|早報|联合早报|聯合早報/i.test(hint);
+          // doc.groupItems contains every nested group. Most nested, unnamed
+          // groups cannot be the final logo and repeatedly asking Illustrator
+          // for their visibleBounds is very expensive on complex artwork.
+          if (item.typename === 'GroupItem' && item.parent && item.parent.typename === 'GroupItem' && !named) continue;
           bounds = item.visibleBounds;
           box = localBounds(bounds, rect);
           centerX = box.x + box.width / 2; centerY = box.y + box.height / 2;
@@ -816,8 +939,6 @@
           if (box.width < boardWidth * 0.015 || box.height < boardHeight * 0.015 || box.width > boardWidth * 0.25 || box.height > boardHeight * 0.25) continue;
           aspect = box.width / box.height;
           if (aspect < 0.4 || aspect > 2.5) continue;
-          hint = String(item.name || '') + ' ' + String(item.layer ? item.layer.name : '');
-          named = /logo|brand|masthead|zaobao|早报|早報|联合早报|聯合早報/i.test(hint);
           if (!named && (centerX < boardWidth * 0.58 || centerY < boardHeight * 0.58)) continue;
           score = (named ? 10000 : 0) + centerX / boardWidth * 100 + centerY / boardHeight * 120 + Math.min(box.width, box.height);
           if (score > bestScore) { bestScore = score; best = box; logoItemsByArtboard[artboardIndex] = item; }
@@ -827,32 +948,45 @@
     return best;
   }
 
-  var artboards = [], artboardsByIndex = {}, i;
+  var artboards = [], artboardsByIndex = {}, i, documentHasRasterPhotos = false;
+  try { documentHasRasterPhotos = doc.placedItems.length > 0 || doc.rasterItems.length > 0; } catch (_) { documentHasRasterPhotos = true; }
   for (selectionIndex = 0; selectionIndex < selectedIndices.length; selectionIndex++) {
     i = selectedIndices[selectionIndex];
     var rect = doc.artboards[i].artboardRect, width = rect[2] - rect[0], height = rect[1] - rect[3];
-    var artboardRecord = {id: 'artboard-' + (i + 1), name: doc.artboards[i].name || ('Artboard ' + (i + 1)), index: i, order: selectionIndex, position: {x: rect[0], y: rect[1]}, bounds: {x: 0, y: 0, width: width, height: height}, orientation: width >= height ? 'landscape' : 'portrait', background: {transparent: true}, objectCount: 0, layerNames: [], logoBounds: logoBoundsForArtboard(i), previewSvg: null, artworkSvg: null, textFrames: [], graphicElements: [], imageObjects: []};
+    // The temporary top-logo duplicate is only needed when a photo may be
+    // rasterized beneath it. Pure vector/text charts must not pay for a full
+    // nested-group logo scan before export begins.
+    var artboardRecord = {id: 'artboard-' + (i + 1), name: doc.artboards[i].name || ('Artboard ' + (i + 1)), index: i, order: selectionIndex, position: {x: rect[0], y: rect[1]}, bounds: {x: 0, y: 0, width: width, height: height}, orientation: width >= height ? 'landscape' : 'portrait', background: {transparent: true}, objectCount: 0, layerNames: [], logoBounds: documentHasRasterPhotos ? logoBoundsForArtboard(i) : null, previewSvg: null, artworkSvg: null, textFrames: [], graphicElements: [], imageObjects: []};
     artboards.push(artboardRecord); artboardsByIndex[i] = artboardRecord;
   }
   var selectedArtboards = artboards.slice(0);
   artboards = [];
   for (selectionIndex = 0; selectionIndex < selectedArtboards.length; selectionIndex++) artboards[selectedArtboards[selectionIndex].index] = selectedArtboards[selectionIndex];
-  var counters = [], exportedBlocks = 0, splitCells = 0, topHeaderSizes = [], scanIndex, scanFrame, scanBounds, scanBoard, scanBox, scanSize;
+  var counters = [], exportedBlocks = 0, splitCells = 0, topHeaderSizes = [], textScanRecords = [], scanIndex, scanFrame, scanBounds, scanBoard, scanBox, scanSize, scanContents;
   for (i = 0; i < doc.artboards.length; i++) counters[i] = 0;
   /* Find the largest text frame in the top quarter of each artboard before
      splitting anything. A multi-line frame at that size is the headline and
      must remain one object when all of its lines use the same font size. */
   for (scanIndex = 0; scanIndex < doc.textFrames.length; scanIndex++) {
+    progress('Indexing text on selected artboard', scanIndex, doc.textFrames.length, selectedIndices.length === 1 ? doc.artboards[selectedIndices[0]].name : 'selected artboards');
     scanFrame = doc.textFrames[scanIndex];
-    try { if (scanFrame.hidden || !scanFrame.editable || !clean(scanFrame.contents)) continue; } catch (_) { continue; }
-    try { scanBounds = scanFrame.visibleBounds; } catch (_) { continue; }
+    try { scanContents = clean(scanFrame.contents); if (!scanContents) continue; } catch (_) { continue; }
+    try { scanBounds = fastTextBounds(scanFrame); } catch (_) { continue; }
     scanBoard = artboardFor(scanBounds);
     if (scanBoard < 0 || !artboardsByIndex[scanBoard]) continue;
     scanBox = localBounds(scanBounds, doc.artboards[scanBoard].artboardRect);
-    if (scanBox.y > artboardsByIndex[scanBoard].bounds.height * 0.25) continue;
-    scanSize = 0;
-    try { scanSize = Number(scanFrame.textRange.characterAttributes.size) || 0; } catch (_) {}
-    if (scanSize > (topHeaderSizes[scanBoard] || 0)) topHeaderSizes[scanBoard] = scanSize;
+    scanSize = estimatedTextSize(scanBox, scanContents, artboardsByIndex[scanBoard].bounds.width);
+    // Use the same real Illustrator point-size basis during header preflight as
+    // during record construction. Previously topHeaderSizes used the geometry
+    // estimate (often ~30 pt) while processing used the real size (e.g. 18 pt),
+    // so a genuine two-line headline failed isUniformHeader and was split by
+    // tableRows() into two list-item records.
+    try {
+      var scanIllustratorPointSize = Number(scanFrame.textRange.characterAttributes.size);
+      if (isFinite(scanIllustratorPointSize) && scanIllustratorPointSize > 0 && scanIllustratorPointSize < 1000) scanSize = scanIllustratorPointSize;
+    } catch (_) {}
+    textScanRecords.push({index: scanIndex, frame: scanFrame, contents: scanContents, bounds: scanBounds, boardIndex: scanBoard, box: scanBox, size: scanSize});
+    if (scanBox.y <= artboardsByIndex[scanBoard].bounds.height * 0.25 && scanSize > (topHeaderSizes[scanBoard] || 0)) topHeaderSizes[scanBoard] = scanSize;
   }
   function numericFontWeight(styleName) {
     var value = String(styleName || '').replace(/[\s_-]+/g, '').toLowerCase();
@@ -867,33 +1001,41 @@
     return 400;
   }
   var outlinedCount = 0;
-  for (i = 0; i < doc.textFrames.length; i++) {
-    progress('Scanning text', i, doc.textFrames.length, selectedIndices.length === 1 ? doc.artboards[selectedIndices[0]].name : 'selected artboards');
-    var frame = doc.textFrames[i];
-    if (frame.hidden || !frame.editable || !clean(frame.contents)) continue;
-    var bounds = frame.visibleBounds, boardIndex = artboardFor(bounds);
-    if (boardIndex < 0 || !artboardsByIndex[boardIndex]) continue;
-    var boardRecord = artboardsByIndex[boardIndex], boardRect = doc.artboards[boardIndex].artboardRect, box = localBounds(bounds, boardRect), textIndex = counters[boardIndex]++, baseId = frameId(boardIndex, textIndex);
+  for (i = 0; i < textScanRecords.length; i++) {
+    progress('Scanning selected text', i, textScanRecords.length, selectedIndices.length === 1 ? doc.artboards[selectedIndices[0]].name : 'selected artboards');
+    var scanRecord = textScanRecords[i], frame = scanRecord.frame, frameDocumentIndex = scanRecord.index, bounds = scanRecord.bounds, boardIndex = scanRecord.boardIndex;
+    var boardRecord = artboardsByIndex[boardIndex], boardRect = doc.artboards[boardIndex].artboardRect, box = scanRecord.box, textIndex = counters[boardIndex]++, baseId = frameId(boardIndex, textIndex);
+    var cachedFrameName = '', cachedLayerName = '';
+    try { cachedFrameName = String(frame.name || ''); } catch (_) {}
+    try { cachedLayerName = String(frame.layer ? frame.layer.name : ''); } catch (_) {}
     boardRecord.objectCount++;
     try { addLayer(boardRecord, frame.layer.name); } catch (_) {}
-    var size = 14, leading = 0, family = 'Noto Sans SC', fill = '#14283f', justify = 'left', fontWeight = 400, fontStyleName = '';
-    try { size = frame.textRange.characterAttributes.size || size; } catch (_) {}
-    try { leading = frame.textRange.characterAttributes.leading || size * 1.2; } catch (_) { leading = size * 1.2; }
-    try { family = frame.textRange.characterAttributes.textFont.family || frame.textRange.characterAttributes.textFont.name; } catch (_) {}
-    try { fontStyleName = frame.textRange.characterAttributes.textFont.style || ''; fontWeight = numericFontWeight(fontStyleName); } catch (_) {}
-    try { fill = colorHex(frame.textRange.characterAttributes.fillColor); } catch (_) {}
-    try { justify = alignment(frame.paragraphs[0].paragraphAttributes.justification); } catch (_) {}
-    var axisLabels = pairedAxisLabels(frame), credits = creditLines(frame), rows = tableRows(frame), isUniformHeader = box.y <= boardRecord.bounds.height * 0.25 && size >= (topHeaderSizes[boardIndex] || size) - 0.01 && hasUniformLineFontSize(frame), rowIndex, columnIndex, maxColumns = 0, columns, rowHeight, cell, cellBox, groupId, fieldType, itemId;
+    var size = scanRecord.size || 14, leading = 0, family = DEFAULT_EXPORT_FONT_FAMILY, fill = '#14283f', justify = 'left', fontWeight = DEFAULT_EXPORT_FONT_WEIGHT, fontStyleName = DEFAULT_EXPORT_FONT_STYLE;
+    // Preserve the real Illustrator point size when it is available. This is a
+    // single scalar read per source TextFrame: unlike font family/name/style
+    // resolution, it does not ask Illustrator to resolve a font object. The
+    // geometry estimate remains the fallback for unusual/legacy frames.
+    try {
+      var illustratorPointSize = Number(frame.textRange.characterAttributes.size);
+      if (isFinite(illustratorPointSize) && illustratorPointSize > 0 && illustratorPointSize < 1000) size = illustratorPointSize;
+    } catch (_) {}
+    leading = size * 1.2;
+    // Font family/style lookup stays intentionally skipped for performance.
+    // ChartLingo uses Noto Sans SC, while the original point size and geometry
+    // are preserved. Virtual cells are still clamped to their physical row.
+    var axisLabels = pairedAxisLabels(frame), credits = creditLines(frame), rows = tableRows(frame), isUniformHeader = box.y <= boardRecord.bounds.height * 0.25 && size >= (topHeaderSizes[boardIndex] || size) - 0.01 && hasUniformLineFontSize(frame), rowIndex, columnIndex, maxColumns = 0, columns, rowHeight, cell, cellBox, groupId, fieldType, itemId, cellSize, cellLeading;
     if (isUniformHeader) { axisLabels = null; credits = null; rows = null; }
     if (axisLabels) {
       rowHeight = box.height / 2;
       for (columnIndex = 0; columnIndex < axisLabels.length; columnIndex++) {
         cell = axisLabels[columnIndex]; groupId = baseId + '-x-' + (columnIndex + 1);
         cellBox = {x: box.x + box.width / axisLabels.length * columnIndex, y: box.y, width: box.width / axisLabels.length, height: rowHeight};
-        artboards[boardIndex].textFrames.push({id: baseId + '-x' + (columnIndex + 1) + '-year', name: (frame.name || ('Text ' + (textIndex + 1))) + ' - Year ' + (columnIndex + 1), sourceText: cell.year, visibleLines: [cell.year], groupId: groupId, fieldType: 'year', kind: 'axis-year', role: 'AXIS_LABEL', bounds: cellBox, permittedRegion: {x: cellBox.x, y: cellBox.y, width: cellBox.width, height: Math.max(cellBox.height, size * 1.5)}, style: {fontFamily: family, fontSize: size, fontWeight: fontWeight, fontStyleName: fontStyleName, lineHeight: leading / size, alignment: 'center', fill: fill}, illustrator: {textFrameIndex: i, virtualCell: true, axisField: 'year', row: 0, column: columnIndex, sourceFrameId: baseId, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
+        cellSize = virtualTextSize(size, cellBox.height); cellLeading = cellSize * 1.2;
+        artboards[boardIndex].textFrames.push({id: baseId + '-x' + (columnIndex + 1) + '-year', name: (frame.name || ('Text ' + (textIndex + 1))) + ' - Year ' + (columnIndex + 1), sourceText: cell.year, visibleLines: [cell.year], groupId: groupId, fieldType: 'year', kind: 'axis-year', role: 'AXIS_LABEL', bounds: cellBox, permittedRegion: {x: cellBox.x, y: cellBox.y, width: cellBox.width, height: virtualPermittedHeight(cellBox.height, cellSize)}, style: {fontFamily: family, fontSize: cellSize, fontWeight: fontWeight, fontStyleName: fontStyleName, lineHeight: cellLeading / cellSize, alignment: 'center', fill: fill}, illustrator: {textFrameIndex: frameDocumentIndex, virtualCell: true, axisField: 'year', row: 0, column: columnIndex, sourceFrameId: baseId, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
         cellBox = {x: cellBox.x, y: box.y + rowHeight, width: cellBox.width, height: rowHeight};
+        cellSize = virtualTextSize(size, cellBox.height); cellLeading = cellSize * 1.2;
         fieldType = periodFieldType(cell.period);
-        artboards[boardIndex].textFrames.push({id: baseId + '-x' + (columnIndex + 1) + '-period', name: (frame.name || ('Text ' + (textIndex + 1))) + ' - Period ' + (columnIndex + 1), sourceText: cell.period, visibleLines: [cell.period], groupId: groupId, fieldType: fieldType, kind: 'axis-period', role: 'AXIS_LABEL', bounds: cellBox, permittedRegion: {x: cellBox.x, y: cellBox.y, width: cellBox.width, height: Math.max(cellBox.height, size * 1.5)}, style: {fontFamily: family, fontSize: size, fontWeight: fontWeight, fontStyleName: fontStyleName, lineHeight: leading / size, alignment: 'center', fill: fill}, illustrator: {textFrameIndex: i, virtualCell: true, axisField: fieldType, row: 1, column: columnIndex, sourceFrameId: baseId, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
+        artboards[boardIndex].textFrames.push({id: baseId + '-x' + (columnIndex + 1) + '-period', name: (frame.name || ('Text ' + (textIndex + 1))) + ' - Period ' + (columnIndex + 1), sourceText: cell.period, visibleLines: [cell.period], groupId: groupId, fieldType: fieldType, kind: 'axis-period', role: 'AXIS_LABEL', bounds: cellBox, permittedRegion: {x: cellBox.x, y: cellBox.y, width: cellBox.width, height: virtualPermittedHeight(cellBox.height, cellSize)}, style: {fontFamily: family, fontSize: cellSize, fontWeight: fontWeight, fontStyleName: fontStyleName, lineHeight: cellLeading / cellSize, alignment: 'center', fill: fill}, illustrator: {textFrameIndex: frameDocumentIndex, virtualCell: true, axisField: fieldType, row: 1, column: columnIndex, sourceFrameId: baseId, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
         exportedBlocks += 2; splitCells += 2;
       }
     } else if (credits) {
@@ -901,25 +1043,32 @@
       for (rowIndex = 0; rowIndex < credits.length; rowIndex++) {
         cell = credits[rowIndex]; fieldType = /来源|來源/.test(cell) ? 'source' : 'credit'; itemId = baseId + '-' + fieldType; groupId = baseId + '-credits';
         cellBox = {x: box.x, y: box.y + rowHeight * rowIndex, width: box.width, height: rowHeight};
-        artboards[boardIndex].textFrames.push({id: itemId, name: (frame.name || ('Text ' + (textIndex + 1))) + ' - ' + (fieldType === 'source' ? 'Source' : 'Credit'), sourceText: cell, visibleLines: [cell], groupId: groupId, fieldType: fieldType, kind: 'credit-line', role: fieldType === 'source' ? 'SOURCE' : 'FOOTNOTE', bounds: cellBox, permittedRegion: {x: cellBox.x, y: cellBox.y, width: Math.max(cellBox.width, artboards[boardIndex].bounds.width - cellBox.x - 12), height: Math.max(cellBox.height, size * 1.5)}, style: {fontFamily: family, fontSize: size, fontWeight: fontWeight, fontStyleName: fontStyleName, lineHeight: leading / size, alignment: justify, fill: fill}, illustrator: {textFrameIndex: i, virtualCell: true, creditLine: true, row: rowIndex, column: 0, sourceFrameId: baseId, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
+        cellSize = virtualTextSize(size, cellBox.height); cellLeading = cellSize * 1.2;
+        artboards[boardIndex].textFrames.push({id: itemId, name: (frame.name || ('Text ' + (textIndex + 1))) + ' - ' + (fieldType === 'source' ? 'Source' : 'Credit'), sourceText: cell, visibleLines: [cell], groupId: groupId, fieldType: fieldType, kind: 'credit-line', role: fieldType === 'source' ? 'SOURCE' : 'FOOTNOTE', bounds: cellBox, permittedRegion: {x: cellBox.x, y: cellBox.y, width: Math.max(cellBox.width, artboards[boardIndex].bounds.width - cellBox.x - 12), height: virtualPermittedHeight(cellBox.height, cellSize)}, style: {fontFamily: family, fontSize: cellSize, fontWeight: fontWeight, fontStyleName: fontStyleName, lineHeight: cellLeading / cellSize, alignment: justify, fill: fill}, illustrator: {textFrameIndex: frameDocumentIndex, virtualCell: true, creditLine: true, row: rowIndex, column: 0, sourceFrameId: baseId, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
         exportedBlocks++; splitCells++;
       }
     } else if (rows) {
       for (rowIndex = 0; rowIndex < rows.length; rowIndex++) if (rows[rowIndex].length > maxColumns) maxColumns = rows[rowIndex].length;
-      columns = tableColumns(frame, maxColumns, box.width, rows.numberedList); rowHeight = box.height / rows.length;
+      columns = tableColumns(frame, maxColumns, box.width, rows.numberedList, artboards[boardIndex].bounds.width - box.x); rowHeight = box.height / rows.length;
       for (rowIndex = 0; rowIndex < rows.length; rowIndex++) for (columnIndex = 0; columnIndex < rows[rowIndex].length; columnIndex++) {
         cell = rows[rowIndex][columnIndex]; if (!cell) continue;
         cellBox = {x: box.x + columns[columnIndex].x, y: box.y + rowHeight * rowIndex, width: columns[columnIndex].width, height: rowHeight};
-        artboards[boardIndex].textFrames.push({id: baseId + '-r' + (rowIndex + 1) + '-c' + (columnIndex + 1), name: (frame.name || ('Text ' + (textIndex + 1))) + ' R' + (rowIndex + 1) + ' C' + (columnIndex + 1), sourceText: cell, visibleLines: [cell], kind: rows.plainList ? 'list-item' : 'table-cell', role: 'DATA_LABEL', contentType: graphicTextType(cell, frame), bounds: cellBox, permittedRegion: {x: cellBox.x, y: cellBox.y, width: cellBox.width, height: Math.max(cellBox.height, size * 1.5)}, style: {fontFamily: family, fontSize: size, fontWeight: fontWeight, fontStyleName: fontStyleName, lineHeight: leading / size, alignment: columns[columnIndex].alignment, fill: fill}, illustrator: {textFrameIndex: i, virtualCell: true, row: rowIndex, column: columnIndex, sourceFrameId: baseId, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
+        cellSize = virtualTextSize(size, cellBox.height); cellLeading = cellSize * 1.2;
+        artboards[boardIndex].textFrames.push(attachLegendMetadata({id: baseId + '-r' + (rowIndex + 1) + '-c' + (columnIndex + 1), name: (frame.name || ('Text ' + (textIndex + 1))) + ' R' + (rowIndex + 1) + ' C' + (columnIndex + 1), sourceText: cell, visibleLines: [cell], kind: rows.plainList ? 'list-item' : 'table-cell', role: 'DATA_LABEL', contentType: graphicTextType(cell, cachedFrameName, cachedLayerName), bounds: cellBox, permittedRegion: {x: cellBox.x, y: cellBox.y, width: cellBox.width, height: virtualPermittedHeight(cellBox.height, cellSize)}, style: {fontFamily: family, fontSize: cellSize, fontWeight: fontWeight, fontStyleName: fontStyleName, lineHeight: cellLeading / cellSize, alignment: columns[columnIndex].alignment, fill: fill}, illustrator: {textFrameIndex: frameDocumentIndex, virtualCell: true, row: rowIndex, column: columnIndex, sourceFrameId: baseId, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable, layoutSource: columns[columnIndex].layoutSource || 'reconstructed-grid', tabAnchor: columns[columnIndex].tabAnchor}}, frame, cell));
         exportedBlocks++; splitCells++;
       }
     } else {
-      artboards[boardIndex].textFrames.push({id: baseId, name: frame.name || ('Text ' + (textIndex + 1)), sourceText: clean(frame.contents), visibleLines: visibleLines(frame), kind: frame.kind === TextType.AREATEXT ? 'area' : frame.kind === TextType.PATHTEXT ? 'path' : 'point', role: role(frame, textIndex), contentType: graphicTextType(frame.contents, frame), bounds: box, permittedRegion: {x: Math.max(0, box.x), y: Math.max(0, box.y - size * 0.5), width: Math.max(box.width, artboards[boardIndex].bounds.width - Math.max(0, box.x) - 12), height: Math.max(box.height, size * 4)}, style: {fontFamily: family, fontSize: size, fontWeight: fontWeight, fontStyleName: fontStyleName, lineHeight: leading / size, alignment: justify, fill: fill}, illustrator: {textFrameIndex: i, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}});
+      artboards[boardIndex].textFrames.push(attachLegendMetadata({id: baseId, name: frame.name || ('Text ' + (textIndex + 1)), sourceText: scanRecord.contents, visibleLines: isUniformHeader ? [scanRecord.contents] : visibleLines(frame), kind: frame.kind === TextType.AREATEXT ? 'area' : frame.kind === TextType.PATHTEXT ? 'path' : 'point', role: role(frame, textIndex), contentType: graphicTextType(scanRecord.contents, cachedFrameName, cachedLayerName), bounds: box, permittedRegion: {x: Math.max(0, box.x), y: Math.max(0, box.y - size * 0.5), width: Math.max(box.width, artboards[boardIndex].bounds.width - Math.max(0, box.x) - 12), height: Math.max(box.height, size * 4)}, style: {fontFamily: family, fontSize: size, fontWeight: fontWeight, fontStyleName: fontStyleName, lineHeight: leading / size, alignment: justify, fill: fill}, illustrator: {textFrameIndex: frameDocumentIndex, layerName: frame.layer.name, locked: frame.locked, editable: frame.editable}}, frame, scanRecord.contents));
       exportedBlocks++;
     }
   }
   var graphicCount = 0, graphicSeenElements = {}, graphicKey, graphicIndex, graphicItem, graphicBounds, graphicBoard, graphicRect, graphicBox, graphicPoints, graphicName, graphicGroup, graphicRecord, childIndex, child;
-  for (graphicIndex = 0; graphicIndex < doc.pathItems.length; graphicIndex++) {
+  /* Pure vector/text documents use their exported SVG as the artwork source.
+     Do not walk every Illustrator PathItem: visually simple files can contain
+     thousands of hidden or nested paths and block ExtendScript before export.
+     Photo documents retain the legacy semantic vector scan for compatibility. */
+  var semanticVectorCount = documentHasRasterPhotos ? doc.pathItems.length : 0;
+  for (graphicIndex = 0; graphicIndex < semanticVectorCount; graphicIndex++) {
     progress('Scanning graphics', graphicIndex, doc.pathItems.length, selectedIndices.length === 1 ? doc.artboards[selectedIndices[0]].name : 'selected artboards');
     graphicItem = doc.pathItems[graphicIndex];
     try { if (graphicItem.hidden || graphicItem.guides || graphicItem.clipping) continue; } catch (_) {}
@@ -983,9 +1132,12 @@
     for (j = 0; j < artboards[i].textFrames.length; j++) {
       var contentFrame = artboards[i].textFrames[j];
       try {
-        var originalFrame = doc.textFrames[contentFrame.illustrator.textFrameIndex], tracking = originalFrame.textRange.characterAttributes.tracking || 0;
-        contentFrame.sourceGroupKey = sourceGroupKey(originalFrame, doc.artboards[artboards[i].index].artboardRect);
-        contentFrame.style.letterSpacing = tracking / 1000 * contentFrame.style.fontSize;
+        var originalFrame = doc.textFrames[contentFrame.illustrator.textFrameIndex];
+        /* visibleBounds on a parent group can force Illustrator to resolve an
+           entire nested artwork tree. Only photo documents need semantic
+           text/vector grouping; pure vector charts keep the SVG intact. */
+        contentFrame.sourceGroupKey = documentHasRasterPhotos ? sourceGroupKey(originalFrame, doc.artboards[artboards[i].index].artboardRect) : null;
+        contentFrame.style.letterSpacing = 0;
         contentFrame.style.verticalAlignment = 'top';
       } catch (_) { contentFrame.style.letterSpacing = 0; contentFrame.style.verticalAlignment = 'top'; }
       if (contentFrame.role !== 'TITLE' && contentFrame.role !== 'SUBTITLE' && contentFrame.role !== 'SOURCE' && contentFrame.role !== 'FOOTNOTE' && contentFrame.fieldType !== 'source' && contentFrame.fieldType !== 'credit') {
@@ -1025,15 +1177,17 @@
       for (j = 0; j < metricGroup.graphics.length; j++) { graphicElement = metricGroup.graphics[j]; graphicElement.metricGroupId = metricKey; graphicElement.slot = metricSlot(graphicElement.contentType); graphicElement.layoutRole = graphicElement.contentType === 'indicator' ? 'indicator' : 'graphic'; }
     }
   }
-  try { for (i = 0; i < doc.groupItems.length; i++) if (/outline|outlined/i.test(doc.groupItems[i].name)) outlinedCount++; } catch (_) {}
+  if (documentHasRasterPhotos) try { for (i = 0; i < doc.groupItems.length; i++) if (/outline|outlined/i.test(doc.groupItems[i].name)) outlinedCount++; } catch (_) {}
   var previousActiveArtboard = doc.artboards.getActiveArtboardIndex();
   for (i = 0; i < artboards.length; i++) {
     var imageValidationError = null;
-    if (exportChoice.imageMode === 'high-quality') {
-      progress('Rendering full Chinese preview', i, artboards.length * 2, artboards[i].name);
-      artboards[i].previewSvg = readSvg(artboards[i].index, false);
-      if (invalidSvgImageReason(artboards[i].previewSvg, artboards[i].imageObjects.length)) artboards[i].previewSvg = null;
-    } else artboards[i].previewSvg = null;
+    // Always preserve Illustrator's own full SVG as the source/reference preview.
+    // ChartLingo should use previewSvg directly for Chinese Source instead of
+    // reconstructing the original textFrames. This keeps tabs, mixed colors,
+    // glyph legends, baselines, merged visual cells and line breaks identical.
+    progress('Rendering Illustrator source preview', i + 1, artboards.length, artboards[i].name);
+    artboards[i].previewSvg = readSvg(artboards[i].index, false);
+    if (invalidSvgImageReason(artboards[i].previewSvg, artboards[i].imageObjects.length)) artboards[i].previewSvg = null;
     progress(exportChoice.imageMode === 'optimized' ? 'Embedding photos and preserving vectors' : 'Rendering editable artwork', exportChoice.imageMode === 'optimized' ? i + 1 : artboards.length + i, exportChoice.imageMode === 'optimized' ? artboards.length : artboards.length * 2, artboards[i].name);
     artboards[i].artworkSvg = readArtworkWithoutLiveText(artboards[i].index, artboards[i], exportChoice.imageMode === 'optimized');
     imageValidationError = invalidSvgImageReason(artboards[i].artworkSvg, artboards[i].imageObjects.length);
@@ -1043,7 +1197,7 @@
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '0.8.8'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '1.0.6-preview-legend-color'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
   function writePackage(file, data, artboardName) {
     var payload, opened = false, written = false, closed = false, verifiedFile;
@@ -1117,7 +1271,7 @@
   }
   verifyCompleteExport();
   try { progressWindow.close(); } catch (_) {}
-  alert('ChartLingo export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 0.8.8\nMode: ' + exportDiagnostics.exportMode + '\nPhoto handling: ' + (exportChoice.imageMode === 'optimized' ? 'displayed-size JPEG photos flattened at 100 PPI' : 'original embedded images') + '; vectors preserved\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
+  alert('ChartLingo export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 1.0.6-preview-legend-color\nMode: ' + exportDiagnostics.exportMode + '\nText font: Noto Sans SC (source-font lookup skipped)\nPhoto handling: ' + (exportChoice.imageMode === 'optimized' ? 'compatible visible photo crops rasterized in memory; unsupported photos safely kept original' : 'original embedded images') + '; vectors preserved\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
   } catch (exportError) {
     try { doc.artboards.setActiveArtboardIndex(initialActiveArtboard); } catch (_) {}
     try { progressWindow.close(); } catch (_) {}

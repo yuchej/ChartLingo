@@ -11,7 +11,7 @@
   <header class="topbar">
     <div class="brand"><span class="brand-mark">CL</span><span>ChartLingo</span></div>
     <div class="top-actions">
-      <label class="button import-button">Import .chartlingo File<input id="packageInput" type="file" accept=".chartlingo,.json,application/json"></label>
+      <label class="button import-button">Import .chartlingo File or SVG<input id="packageInput" type="file" accept=".chartlingo,.json,.svg,application/json,image/svg+xml"></label>
       <button id="importDatawrapper" class="button import-button" type="button" hidden>Import Datawrapper Link</button>
       <label class="button import-button">Import CSV or TXT<input id="csvInput" type="file" accept=".csv,.txt,text/csv,text/plain"></label>
       <span class="toolbar-divider" aria-hidden="true"></span>
@@ -134,6 +134,7 @@
     </div>
   </section>
     <script src="core.js?v=20260922-02"></script>
-    <script src="app.js?v=20260925-32"></script>
+    <script src="svg-import.js?v=20260928-01"></script>
+    <script src="app.js?v=20260928-35"></script>
 </body>
 </html>
