@@ -187,3 +187,5 @@ body:has(#app.editing-mode) main{padding:12px 16px 16px}
 #app.editing-mode .editor-toolbar .preview-actions{grid-template-rows:32px 48px 48px}
 #app.editing-mode #outputCanvas{height:calc(100vh - 246px)}
 @media(max-width:760px){#app.editing-mode .editor-toolbar{height:132px;min-height:132px;background-position:10px 36px,10px 80px}#app.editing-mode .editor-toolbar .preview-actions{grid-template-rows:30px 44px 44px}#app.editing-mode #outputCanvas{height:calc(100vh - 230px);min-height:360px}}
+
+.topbar .import-csv-button{background:#1970bd;border-color:#1970bd;color:#fff}.topbar .import-csv-button:hover,.topbar .import-csv-button:focus-visible{background:#155d9d;border-color:#155d9d;color:#fff}
