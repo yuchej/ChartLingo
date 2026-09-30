@@ -888,6 +888,10 @@
     if (Number(expectedImages || 0) > 0 && imageCount === 0) return 'The SVG contains no image element for ' + expectedImages + ' detected raster image(s).';
     return null;
   }
+  function svgImageCount(value) {
+    var source = String(value || ''), matches = source.match(/<image\b[^>]*>/gi);
+    return matches ? matches.length : 0;
+  }
   function readArtworkWithoutLiveText(artboardIndex, artboardRecord, optimizedImages) {
     var states = [], rasterStates = [], logoState = null, value = '', i, frameIndex, seen = {};
     try {
@@ -1099,12 +1103,27 @@
   function imageRotation(item) {
     try { return Math.atan2(item.matrix.mValueB, item.matrix.mValueA) * 180 / Math.PI; } catch (_) { return 0; }
   }
+  function imageIsEffectivelyVisible(item) {
+    var current = item, bounds, opacity;
+    while (current && current !== doc) {
+      try { if (current.hidden) return false; } catch (_) {}
+      try { if (current.typename === 'Layer' && current.visible === false) return false; } catch (_) {}
+      try { opacity = Number(current.opacity); if (!isNaN(opacity) && opacity <= 0) return false; } catch (_) {}
+      try { current = current.parent; } catch (_) { current = null; }
+    }
+    try {
+      bounds = item.visibleBounds;
+      if (!bounds || Number(bounds[2]) - Number(bounds[0]) <= 0.01 || Number(bounds[1]) - Number(bounds[3]) <= 0.01) return false;
+    } catch (_) { return false; }
+    return true;
+  }
   function scanImageCollection(collection, imageType) {
     var imageIndex, imageItem, imageBounds, imageBoard, imageRect, imageBox, imagePosition, originalWidth, originalHeight, originalX, originalY, rotation, record;
     for (imageIndex = 0; imageIndex < collection.length; imageIndex++) {
       progress('Scanning images', imageIndex, collection.length, selectedIndices.length === 1 ? doc.artboards[selectedIndices[0]].name : 'selected artboards');
       imageItem = collection[imageIndex];
-      try { if (imageItem.hidden) continue; imageBounds = imageItem.visibleBounds; } catch (_) { continue; }
+      if (!imageIsEffectivelyVisible(imageItem)) continue;
+      try { imageBounds = imageItem.visibleBounds; } catch (_) { continue; }
       imageBoard = artboardFor(imageBounds); if (imageBoard < 0 || !artboardsByIndex[imageBoard]) continue;
       imageRect = doc.artboards[imageBoard].artboardRect; imageBox = localBounds(imageBounds, imageRect);
       try { imagePosition = imageItem.position; } catch (_) { imagePosition = [imageBounds[0], imageBounds[1]]; }
@@ -1187,6 +1206,18 @@
     // glyph legends, baselines, merged visual cells and line breaks identical.
     progress('Rendering Illustrator source preview', i + 1, artboards.length, artboards[i].name);
     artboards[i].previewSvg = readSvg(artboards[i].index, false);
+    /* Illustrator can expose internal RasterItems for effects, masks and legacy
+       Windows artwork even though its own SVG contains no raster image. Those
+       records are not photos and must not make an otherwise valid vector export
+       fail. Keep strict validation for PlacedItems because a missing linked image
+       really would remove visible artwork. */
+    if (artboards[i].imageObjects.length && svgImageCount(artboards[i].previewSvg) === 0) {
+      var hasPlacedImage = false, visibleRasterObjects = [], rasterObjectIndex;
+      for (rasterObjectIndex = 0; rasterObjectIndex < artboards[i].imageObjects.length; rasterObjectIndex++) {
+        if (artboards[i].imageObjects[rasterObjectIndex].imageType === 'placed') { hasPlacedImage = true; break; }
+      }
+      if (!hasPlacedImage) artboards[i].imageObjects = visibleRasterObjects;
+    }
     if (invalidSvgImageReason(artboards[i].previewSvg, artboards[i].imageObjects.length)) artboards[i].previewSvg = null;
     progress(exportChoice.imageMode === 'optimized' ? 'Embedding photos and preserving vectors' : 'Rendering editable artwork', exportChoice.imageMode === 'optimized' ? i + 1 : artboards.length + i, exportChoice.imageMode === 'optimized' ? artboards.length : artboards.length * 2, artboards[i].name);
     artboards[i].artworkSvg = readArtworkWithoutLiveText(artboards[i].index, artboards[i], exportChoice.imageMode === 'optimized');
@@ -1197,7 +1228,7 @@
   }
   try { doc.artboards.setActiveArtboardIndex(previousActiveArtboard); } catch (_) {}
   function packageFor(records, suffix) {
-    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '1.0.6-preview-legend-color'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
+    return {schema: 'https://chartlingo.local/schemas/package-v2.json', schemaVersion: '2.0.0', generator: {name: 'ChartLingo Illustrator Prototype', version: '1.0.7-visible-raster-detection'}, document: {id: 'cl-doc-' + clean(doc.name).replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase() + (suffix || ''), revision: String(doc.fullName && doc.fullName.exists ? doc.fullName.modified.getTime() : new Date().getTime()), name: doc.name.replace(/\.[^.]+$/, '') + (suffix || ''), sourceApp: 'Adobe Illustrator', sourceVersion: app.version, exportMode: exportChoice.mode === 0 ? 'single' : 'multiple', imageMode: exportChoice.imageMode, artboards: records}, warnings: outlinedCount ? [{code: 'POSSIBLE_OUTLINED_TEXT', message: outlinedCount + ' named outline group(s) require manual review.'}] : []};
   }
   function writePackage(file, data, artboardName) {
     var payload, opened = false, written = false, closed = false, verifiedFile;
@@ -1271,7 +1302,7 @@
   }
   verifyCompleteExport();
   try { progressWindow.close(); } catch (_) {}
-  alert('ChartLingo export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 1.0.6-preview-legend-color\nMode: ' + exportDiagnostics.exportMode + '\nText font: Noto Sans SC (source-font lookup skipped)\nPhoto handling: ' + (exportChoice.imageMode === 'optimized' ? 'compatible visible photo crops rasterized in memory; unsupported photos safely kept original' : 'original embedded images') + '; vectors preserved\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
+  alert('ChartLingo export complete.\n\nDestination folder:\n' + displayPath(destinationFolder) + '\n\nOutput files:\n' + outputPaths.join('\n') + '\n\nExporter: 1.0.7-visible-raster-detection\nMode: ' + exportDiagnostics.exportMode + '\nText font: Noto Sans SC (source-font lookup skipped)\nPhoto handling: ' + (exportChoice.imageMode === 'optimized' ? 'compatible visible photo crops rasterized in memory; unsupported photos safely kept original' : 'original embedded images') + '; vectors preserved\nFiles written: ' + exportDiagnostics.filesWritten + '\nFiles verified: ' + exportDiagnostics.filesVerified + '\nArtboards exported: ' + exportDiagnostics.artboardsCompleted + '\nPackage text blocks: ' + exportedBlocks + '\nIndependent vector elements: ' + graphicCount + '\nSeparated text items: ' + splitCells);
   } catch (exportError) {
     try { doc.artboards.setActiveArtboardIndex(initialActiveArtboard); } catch (_) {}
     try { progressWindow.close(); } catch (_) {}
