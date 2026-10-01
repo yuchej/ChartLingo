@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const vm = require("node:vm");
 
-vm.runInThisContext(`${fs.readFileSync(require.resolve("../core.js"), "utf8")}\nglobalThis.__CLV2 = CLV2;`);
+vm.runInThisContext(`${fs.readFileSync(require.resolve("../assets/js/core.js"), "utf8")}\nglobalThis.__CLV2 = CLV2;`);
 
 const frames = ["1.2", "1.0", "0.8", "0.6"].map((sourceText, index) => ({
   id: `axis-r${index + 1}`,

@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const vm = require("node:vm");
 
-vm.runInThisContext(`${fs.readFileSync(require.resolve("../core.js"), "utf8")}\nglobalThis.__CLV2 = CLV2;`);
+vm.runInThisContext(`${fs.readFileSync(require.resolve("../assets/js/core.js"), "utf8")}\nglobalThis.__CLV2 = CLV2;`);
 
 const pairs = global.__CLV2.parseCsv("\uFEFFCH,EN\n上半年,First Half\n2026上半年,First Half of 2026\n2026下半年,Second Half of 2026\n");
 if (pairs.length !== 3) throw new Error(`Expected 3 CSV rows, got ${pairs.length}`);

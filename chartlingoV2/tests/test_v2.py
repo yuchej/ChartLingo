@@ -17,15 +17,15 @@ class ChartLingoTests(unittest.TestCase):
         self.assertNotIn("ChartLingoV2", exporter)
 
     def test_v2_is_self_contained(self):
-        for name in ["index.html", "styles.css", "core.js", "svg-import.js", "app.js", "README.md"]:
+        for name in ["index.html", "assets/css/styles.css", "assets/js/core.js", "assets/js/svg-import.js", "assets/js/app.js", "README.md"]:
             self.assertTrue((ROOT / name).is_file(), name)
 
     def test_svg_is_an_additive_first_class_input(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        adapter = (ROOT / "svg-import.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        adapter = (ROOT / "assets/js/svg-import.js").read_text()
         self.assertIn('.chartlingo,.json,.svg', index)
-        self.assertIn('src="svg-import.js', index)
+        self.assertIn('src="assets/js/svg-import.js', index)
         self.assertIn("sourceType:'svg'", adapter)
         self.assertIn('svgSource:canonical', adapter)
         self.assertIn('artworkSvg:removeText(canonical)', adapter)
@@ -37,7 +37,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("else importPackage(raw)", app)
 
     def test_svg_adapter_preserves_artwork_and_sanitizes_active_content(self):
-        adapter = (ROOT / "svg-import.js").read_text()
+        adapter = (ROOT / "assets/js/svg-import.js").read_text()
         fixture = (ROOT / "fixtures/svg-generic.svg").read_text()
         self.assertIn('core.sanitizeSvg(raw)', adapter)
         self.assertIn("querySelectorAll('text,tspan')", adapter)
@@ -53,7 +53,7 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_workspace_placeholders_replace_intro_page(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertNotIn('id="emptyState"', index)
         self.assertIn('<section id="app">', index)
         self.assertIn('class="panel-placeholder"', index)
@@ -69,14 +69,14 @@ class ChartLingoTests(unittest.TestCase):
         self.assertEqual(result["properties"]["schemaVersion"]["const"], "2.0.0")
 
     def test_multiline_text_is_one_source_object(self):
-        core = (ROOT / "core.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
         self.assertIn("visibleLines:['航程缩短3小时，','新加坡经济可获什么？']", core)
         self.assertIn("sourceText:'航程缩短3小时，新加坡经济可获什么？'", core)
         self.assertEqual(core.count("id:'headline-01'"), 1)
 
     def test_axis_and_credit_fields_are_atomic_data_records(self):
-        core = (ROOT / "core.js").read_text()
-        app = (ROOT / "app.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         package_schema = (ROOT / "schemas/package-v2.schema.json").read_text()
         result_schema = (ROOT / "schemas/result-v2.schema.json").read_text()
         self.assertIn("CLV2.atomicTextFrames", core)
@@ -91,7 +91,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn('"pairId"', result_schema)
 
     def test_direct_exports_exist(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("function exportSvg()", app)
         self.assertIn("function exportPng()", app)
         self.assertNotIn("function exportResult()", app)
@@ -99,7 +99,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertTrue((ROOT / "illustrator/apply-chartlingo-result.jsx").is_file())
 
     def test_svg_export_is_illustrator_compatible_xml(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("function illustratorCompatibleSvg", app)
         self.assertIn("ILLUSTRATOR_SVG_DOCTYPE", app)
         self.assertIn("<!ENTITY ns_extend", app)
@@ -112,7 +112,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("SVG export validation failed after Illustrator compatibility processing", app)
 
     def test_svg_export_embeds_and_validates_every_raster_image(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         self.assertIn("function validateAndEmbedExportImages", app)
         self.assertIn("function imageExportFailure", app)
@@ -168,7 +168,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("usedRasterFallback: false", exporter)
 
     def test_browser_exports_require_a_system_save_confirmation(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("window.showSaveFilePicker", app)
         self.assertIn("function chooseExportDestination", app)
         self.assertIn("function saveExport", app)
@@ -186,7 +186,7 @@ class ChartLingoTests(unittest.TestCase):
             self.assertIn(f"chooseExportDestination(name,'{extension}')", app)
 
     def test_embedded_svg_is_sanitized(self):
-        core = (ROOT / "core.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
         self.assertIn("CLV2.sanitizeSvg", core)
         self.assertIn("CLV2.stripInvalidXmlCharacters", core)
         self.assertIn("Removed ${removed} invalid SVG control character", core)
@@ -204,7 +204,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("version: '0.8.7'", exporter)
 
     def test_text_box_resize_previews_live_text_reflow(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("function editableReflowLines", app)
         self.assertIn("function previewTextBoxReflow", app)
         self.assertIn("previewTextBoxReflow(node,object,preview)", app)
@@ -214,7 +214,7 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_fixed_1200_by_800_output_is_opt_in_per_artboard(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn('id="outputSizeMode"', index)
         self.assertIn('value="auto">Auto height', index)
         self.assertIn('value="fixed">Fixed 1200 × 800', index)
@@ -228,7 +228,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("$('outputSizeMode').onchange", app)
 
     def test_exporter_joins_fragmented_decimal_axis_lines(self):
-        core = (ROOT / "core.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         self.assertIn("CLV2.mergeSpatialDecimalTicks", core)
         self.assertIn("vertical>tolerance", core)
@@ -246,8 +246,8 @@ class ChartLingoTests(unittest.TestCase):
         self.assertNotIn("JSON.parse", importer)
 
     def test_v2_removes_source_text_and_uses_1200px_output(self):
-        core = (ROOT / "core.js").read_text()
-        app = (ROOT / "app.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("CLV2.removeSourceText", core)
         self.assertIn("querySelectorAll('text,textPath,flowRoot,flowPara')", core)
         self.assertIn("const width=1200", app)
@@ -258,21 +258,21 @@ class ChartLingoTests(unittest.TestCase):
         self.assertNotIn("source-mask", app)
 
     def test_unmatched_text_is_retained_and_roboto_is_bundled(self):
-        core = (ROOT / "core.js").read_text()
-        app = (ROOT / "app.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("pair?.en||frame.sourceText", core)
         self.assertIn("sourceRetained:!pair", core)
         self.assertIn("function updateMapping", app)
         self.assertIn("Use original Chinese content", app)
         self.assertIn("manual-match", app)
         self.assertIn("if(score<.82)pair=null", core)
-        self.assertTrue((ROOT / "fonts/Roboto-Regular.ttf").is_file())
-        self.assertTrue((ROOT / "fonts/Roboto-Bold.ttf").is_file())
-        self.assertTrue((ROOT / "fonts/OFL.txt").is_file())
+        self.assertTrue((ROOT / "assets/fonts/Roboto-Regular.ttf").is_file())
+        self.assertTrue((ROOT / "assets/fonts/Roboto-Bold.ttf").is_file())
+        self.assertTrue((ROOT / "assets/fonts/OFL.txt").is_file())
 
     def test_generated_text_can_be_dragged_and_exported_at_new_position(self):
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertIn("function bindCanvasDragging", app)
         self.assertIn("node.onpointerdown", app)
         self.assertIn("item.layout.x=base.x+dx", app)
@@ -282,8 +282,8 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("cursor:grab", styles)
 
     def test_reference_title_style_and_source_locked_geometry(self):
-        core = (ROOT / "core.js").read_text()
-        app = (ROOT / "app.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         self.assertIn("CLV2.originalLayout", core)
         self.assertIn("sourceLocked:true", core)
@@ -298,7 +298,7 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_per_chart_reference_package_drives_translated_geometry(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertNotIn('id="referenceInput"', index)
         self.assertNotIn('id="loadSample"', index)
         self.assertIn("referencePkg:null", app)
@@ -309,7 +309,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("independent translation widths and structured metric groups", app)
 
     def test_reference_credits_have_an_eight_pixel_floor_and_wrap(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("function isCredit", app)
         self.assertIn("function isGraphicCredit", app)
         self.assertIn("zaobao\\s+(?:graphic|chart)", app)
@@ -319,7 +319,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("visibleLines=credit?[english]", app)
 
     def test_output_height_auto_fits_content(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("const width=1200", app)
         self.assertIn("cropWindows:new Map()", app)
         self.assertIn("function fitCropWindow", app)
@@ -330,7 +330,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn('id="english-layer" transform="translate(0 ${-spec.cropTop})"', app)
 
     def test_plain_list_labels_share_a_font_size(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("function normalizeListTypography", app)
         self.assertIn("let fontSize=26", app)
         self.assertIn("while(fontSize>18", app)
@@ -339,7 +339,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("normalizeListTypography(list)", app)
 
     def test_headline_moves_instead_of_disconnecting_chart_content(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("contentShifts:new Map()", app)
         self.assertIn("function enforceHeaderGap", app)
         self.assertIn("contentTop-HEADER_CONTENT_GAP-title.layout.height", app)
@@ -353,7 +353,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("Text position updated.", app)
 
     def test_header_and_credits_use_uploaded_reference_spec(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("147.73046875*scale", app)
         self.assertIn("106.2744140625*scale", app)
         self.assertIn("fontSize=65*scale", app)
@@ -364,7 +364,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("visibleLines:[english]", app)
 
     def test_untranslated_numbers_use_proportional_source_geometry(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("function isNumericContent", app)
         self.assertIn("function mappedBounds", app)
         self.assertIn("sourceWidth=Number(artboard.bounds.width)", app)
@@ -374,8 +374,8 @@ class ChartLingoTests(unittest.TestCase):
         self.assertNotIn("method:numericReference?'reference cell'", app)
 
     def test_strict_positions_and_browser_text_removal(self):
-        core = (ROOT / "core.js").read_text()
-        app = (ROOT / "app.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         self.assertIn("x=frame.bounds.x,y=frame.bounds.y", core)
         self.assertIn("sourceRetained&&original.visibleLines?.length>1", app)
@@ -410,7 +410,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("__CHARTLINGO_CANCELLED__", exporter)
 
     def test_logo_safe_credit_layout_is_exported_and_dynamic(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         schema = (ROOT / "schemas/package-v2.schema.json").read_text()
         self.assertNotIn("function logoBoundsForArtboard", exporter)
@@ -423,12 +423,12 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("previousBottom+8", app)
 
     def test_chart_content_line_break_modes_are_scoped(self):
-        core = (ROOT / "core.js").read_text()
-        app = (ROOT / "app.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         package_schema = (ROOT / "schemas/package-v2.schema.json").read_text()
         result_schema = (ROOT / "schemas/result-v2.schema.json").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertIn("function isChartContent", app)
         self.assertIn("function updateLineBreakMode", app)
         self.assertIn('<option value="auto"', app)
@@ -452,10 +452,10 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_chart_content_can_merge_and_regenerate_from_csv(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         importer = (ROOT / "illustrator/apply-chartlingo-result.jsx").read_text()
         schema = (ROOT / "schemas/result-v2.schema.json").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertIn('id="mergeSelected"', index)
         self.assertIn('id="mergeCsvField"', index)
         self.assertIn("function mergeSelectedFromCsv", app)
@@ -490,7 +490,7 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_infographic_text_is_atomic_and_vector_artwork_uses_fast_svg_export(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         package_schema = (ROOT / "schemas/package-v2.schema.json").read_text()
         result_schema = (ROOT / "schemas/result-v2.schema.json").read_text()
         self.assertIn("function graphicTextType", exporter)
@@ -507,7 +507,7 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_infographic_metric_groups_use_non_overlapping_slots(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         package_schema = (ROOT / "schemas/package-v2.schema.json").read_text()
         result_schema = (ROOT / "schemas/result-v2.schema.json").read_text()
         self.assertIn("function sourceGroupKey", exporter)
@@ -527,8 +527,8 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_english_preview_has_undo_redo_history(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertIn('id="undoEdit"', index)
         self.assertIn('id="redoEdit"', index)
         self.assertIn("undoHistory:new Map()", app)
@@ -544,8 +544,8 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_text_inspector_edits_existing_semantic_objects(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         for element_id in [
             "textInspector", "editText", "editFontFamily", "editFontSize",
             "editFontWeight", "editColor", "editLineHeight",
@@ -591,8 +591,8 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_design_tool_transform_handles_and_text_glyph_strokes(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         for element_id in [
             "editBorderEnabled", "editBorderColor", "editBorderWidth",
             "editBorderStyle", "editBorderOpacity", "editStrokeAlignment",
@@ -625,8 +625,8 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_multi_selection_alignment_toolbar_and_direct_positioning(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertIn('id="multiAlignTools"', index)
         for action in ["left", "top", "vcenter", "bottom", "right"]:
             self.assertIn(f'data-align-action="{action}"', index)
@@ -649,8 +649,8 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_mismatch_checklist_requires_explicit_selection_and_structural_confirmation(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertIn('id="mismatchSelectAll"', index)
         self.assertNotIn('id="mismatchDeselectAll"', index)
         self.assertNotIn('id="mismatchSelectFixable"', index)
@@ -698,7 +698,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertNotIn('.format-choice.selected-decision:after', styles)
 
     def test_identical_repeated_text_with_same_translation_is_not_a_mismatch(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("legitimateRepeat=matches.length>1", app)
         self.assertIn("CLV2.matchKey(object.originalSource?.sourceText||object.sourceText)===pairKey", app)
         self.assertIn("CLV2.normalize(object.english)===translation", app)
@@ -706,8 +706,8 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_editor_preview_has_display_only_zoom_controls(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         for control in ["previewZoomOut", "previewZoomPercent", "previewZoomIn", "previewZoomFit"]:
             self.assertIn(f'id="{control}"', index)
         self.assertNotIn('id="previewZoomReset"', index)
@@ -724,7 +724,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("overflow:auto", styles)
 
     def test_structured_table_layout_supports_wide_tables_and_multirow_headers(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("if(columns.length<2||rows.length<2)continue", app)
         self.assertNotIn("if(columns.length!==3||rows.length<2)continue", app)
         self.assertIn("if(columns.length>3)", app)
@@ -733,8 +733,8 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("rows.slice(0,headerRowCount)", app)
 
     def test_numeric_y_axis_is_split_and_missing_footer_is_added(self):
-        core = (ROOT / "core.js").read_text()
-        app = (ROOT / "app.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         index = (ROOT / "index.html").read_text()
         self.assertIn("CLV2.splitNumericAxes=frames=>", core)
         self.assertIn("kind:'axis-tick'", core)
@@ -744,12 +744,12 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("LHZB Graphic: AI-Assisted Translation", app)
         self.assertIn("ensureDefaultFooter(artboard,list,spec)", app)
         self.assertIn("(?:zaobao|lhzb)", app)
-        self.assertIn('core.js?v=20260922-02', index)
-        self.assertIn('app.js?v=20260924-31', index)
+        self.assertIn('assets/js/core.js?v=20261001-01', index)
+        self.assertIn('assets/js/app.js?v=20261001-01', index)
 
     def test_ai_disclaimer_can_be_added_from_output_toolbar(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn('id="addAiDisclaimer"', index)
         self.assertIn('id="outputDimensions" hidden', index)
         self.assertIn("const AI_DISCLAIMER='LHZB Graphic: AI-Assisted Translation'", app)
@@ -762,13 +762,13 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("!object.generatedFooter&&!object.manualDisclaimer", app)
         self.assertIn("$('addAiDisclaimer').onclick=toggleAiDisclaimer", app)
         self.assertIn("'Remove AI disclaimer':'Add AI disclaimer'", app)
-        self.assertIn("#addAiDisclaimer{display:none}#app.editing-mode #addAiDisclaimer{display:inline-flex}", (ROOT / "styles.css").read_text())
+        self.assertIn("#addAiDisclaimer{display:none}#app.editing-mode #addAiDisclaimer{display:inline-flex}", (ROOT / "assets/css/styles.css").read_text())
 
     def test_chart_typography_uses_local_noto_with_explicit_roboto_fallback(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        core = (ROOT / "core.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         self.assertIn("primary:'Noto Sans SC',fallback:'Roboto'", core)
         self.assertIn("document.fonts.check('400 16px \"Noto Sans SC\"')", app)
@@ -802,8 +802,8 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_compact_highlight_and_automatic_outside_outline_controls(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertNotIn("Text outline enabled", index)
         self.assertIn('id="partialHighlightTitle" hidden', index)
         self.assertIn('<option value="outside">Outside</option><option value="center">Center</option>', index)
@@ -813,7 +813,7 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_exporter_has_simple_artboard_selection_and_optimized_photo_mode(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         index = (ROOT / "index.html").read_text()
         self.assertIn("['Single artboard', 'Multiple artboards']", exporter)
         self.assertIn("{multiselect: true}", exporter)
@@ -840,12 +840,12 @@ class ChartLingoTests(unittest.TestCase):
         self.assertNotIn("savedText = verifiedFile.read()", exporter)
         self.assertIn("const artwork=board.artworkSvg", app)
         self.assertIn("background}${texts}", app)
-        self.assertIn('app.js?v=20260924-31', index)
+        self.assertIn('assets/js/app.js?v=20261001-01', index)
 
     def test_editor_can_add_a_manual_editable_text_box(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertIn('id="addText"', index)
         self.assertIn("function addManualText", app)
         self.assertIn("method:'manually added'", app)
@@ -855,8 +855,8 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn(".add-text-button", styles)
 
     def test_multi_selection_moves_as_a_group_and_supports_keyboard_nudging(self):
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertIn('data-group-selection="true"', app)
         self.assertIn("function selectedBounds", app)
         self.assertIn("function constrainedSelectionDelta", app)
@@ -875,8 +875,8 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_removed_preflight_ui_and_invalid_svg_control_characters(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertNotIn(">Run checks<", index)
         self.assertNotIn("issues-panel", index)
         self.assertNotIn("<h2>Exceptions</h2>", index)
@@ -888,8 +888,8 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_editor_can_toggle_chinese_reference_without_scope_or_reset_ui(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertNotIn("<summary>Edit scope</summary>", index)
         self.assertNotIn(">Selected text only<", index)
         self.assertNotIn(">Reset generated<", index)
@@ -906,8 +906,8 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_editor_has_save_back_tab_without_duplicate_back_or_apply_buttons(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         self.assertIn("function renderTabs(){const host=$('artboardTabs');host.innerHTML='';host.hidden=true}", app)
         self.assertIn('id="saveBackToGallery"', index)
         self.assertIn('class="editor-toolbar-secondary"', index)
@@ -921,8 +921,8 @@ class ChartLingoTests(unittest.TestCase):
 
     def test_top_toolbar_groups_import_generate_and_export_dropdown(self):
         index = (ROOT / "index.html").read_text()
-        app = (ROOT / "app.js").read_text()
-        styles = (ROOT / "styles.css").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        styles = (ROOT / "assets/css/styles.css").read_text()
         top_actions = index[index.index('<div class="top-actions">'):index.index('</div>\n  </header>')]
         self.assertIn('id="packageInput"', top_actions)
         self.assertIn('id="csvInput"', top_actions)
@@ -942,14 +942,14 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("#app:not(.editing-mode) .canvas-host svg{width:auto;max-width:100%;height:auto;max-height:70vh}", styles)
 
     def test_generation_starts_automatically_after_both_inputs_are_ready(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         index = (ROOT / "index.html").read_text()
         self.assertIn("async function maybeAutoGenerate()", app)
         self.assertIn("await maybeAutoGenerate()", app)
         self.assertGreaterEqual(app.count("await maybeAutoGenerate()"), 2)
         self.assertIn("generationInProgress", app)
         self.assertNotIn("$('generate')", app)
-        self.assertIn('app.js?v=20260924-31', index)
+        self.assertIn('assets/js/app.js?v=20261001-01', index)
 
     def test_illustrator_tab_tables_export_as_independent_cells(self):
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
@@ -989,7 +989,7 @@ class ChartLingoTests(unittest.TestCase):
         self.assertIn("sourceFrameId(sourceId)", importer)
 
     def test_structured_tables_resolve_all_columns_inside_artboard(self):
-        app = (ROOT / "app.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         exporter = (ROOT / "illustrator/export-to-chartlingo.jsx").read_text()
         self.assertIn("function resolvedTableColumns(group,columns,spec)", app)
         self.assertIn("Math.min(spec.width,naturalRight)", app)
@@ -1001,8 +1001,8 @@ class ChartLingoTests(unittest.TestCase):
         self.assertNotIn("Math.max(1, next - anchors[i], step)", exporter)
 
     def test_legacy_packages_warn_instead_of_failing(self):
-        core = (ROOT / "core.js").read_text()
-        app = (ROOT / "app.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
         self.assertIn("copy.legacyExporter=", core)
         self.assertIn("CLV2.removeLegacyOutlinedText", core)
         self.assertIn("fill===target.color", core)
@@ -1019,8 +1019,8 @@ class ChartLingoTests(unittest.TestCase):
                 self.assertNotIn("../index.html", text)
 
     def test_translated_output_preserves_optional_visual_glyphs(self):
-        app = (ROOT / "app.js").read_text()
-        core = (ROOT / "core.js").read_text()
+        app = (ROOT / "assets/js/app.js").read_text()
+        core = (ROOT / "assets/js/core.js").read_text()
         self.assertIn("function preservedGlyphMetadata", app)
         self.assertIn("function preservedGlyphMarkup", app)
         self.assertIn('data-chartlingo-preserved-glyph', app)

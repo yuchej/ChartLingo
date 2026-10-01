@@ -1,5 +1,5 @@
 const path=require('path');
-const {chromium}=require('playwright');
+const {chromium}=require(process.env.CODEX_NODE_MODULES+'/playwright');
 
 (async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
