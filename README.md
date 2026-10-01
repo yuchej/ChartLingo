@@ -16,4 +16,4 @@ Open [`chartlingoV2/index.html`](chartlingoV2/index.html) in a browser. The app 
 - `chartlingoV2/USER_GUIDE.md` — end-user guide
 - `chartlingoV2/HANDOVER.md` — maintenance and handover notes
 
-GitHub Pages publishes `chartlingoV2/` directly as the site root.
+GitHub Pages publishes the repository root, so the application preview remains available under `/ChartLingo/chartlingoV2/`.
